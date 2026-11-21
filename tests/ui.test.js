@@ -225,6 +225,38 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.screenshot({path: OUT + '/phone-13-preview.png'});
   await tap('C');
 
+  // округление: вверх(12,1; 0,5)
+  await swipe(); await tap('rup'); await tap('123'); await typeKeys('12,1'); await swipe(); await tap(';'); await tap('123'); await typeKeys('0,5'); await tap('=');
+  L = (await lineTexts()).map(clean);
+  eq('округление вверх', L[L.length - 1], 'вверх(12,1; 0,5) = 12,5');
+  // выделение строк и сумма
+  await p.locator('#lines .ln').nth(2).click({button: 'right'});
+  await p.click('#dlg .mi[data-r="sel"]');
+  await p.locator('#lines .ln').nth(3).click(); await p.locator('#lines .ln').nth(4).click();
+  eq('сумма выделенных', clean(await p.textContent('#selBar .st')), 'Выбрано: 3 · Σ 24 480,5 · ср. 8 160,1667 · мин 3 255 · макс 17 902,5');
+  await p.screenshot({path: OUT + '/phone-17-sum.png'});
+  await p.click('#selBar [data-s="sum"]');
+  eq('Σ в ввод ссылками', await p.$$eval('.ln.draft .ref', ns => ns.length), 3);
+  eq('Σ предпросмотр', clean(await p.$eval('.ln.draft .pv', n => n.textContent)), '= 24 480,5');
+  await tap('C');
+  // подбор числа: чтобы строка 1 дала 31 000
+  await p.locator('#lines .ln').nth(0).locator('.d').nth(8).click({button: 'right'});
+  await p.click('#dlg .mi[data-r="seek"]');
+  await p.fill('#gsV', '31000'); await p.click('#dlg .btns .pri');
+  L = (await lineTexts()).map(clean);
+  eq('подбор: результат', L[0].split('=')[1].trim(), '31 000');
+  eq('подбор: зависимая пересчиталась', L[2].split('=')[1].trim(), '23 870');
+  // подбор по зависимой строке: строка 3 (÷ 5,5) должна дать 4 000
+  await p.locator('#lines .ln').nth(0).locator('.d').nth(8).click({button: 'right'});
+  await p.click('#dlg .mi[data-r="seek"]');
+  await p.locator('#dlg input[name=gsT]').nth(2).check();
+  await p.fill('#gsV', '4000'); await p.click('#dlg .btns .pri');
+  L = (await lineTexts()).map(clean);
+  eq('подбор по зависимой', L[3].split('=')[1].trim(), '4 000');
+  await p.click('#undoBtn'); await p.click('#undoBtn');
+  L = (await lineTexts()).map(clean);
+  eq('подбор отменён', L[0].replace(/\s/g, ''), '150000×0,155=23250');
+
   // подписи, вставка по подписи, закреплённые, поиск, номера, разделители по дням
   eq('разделитель «Сегодня»', await p.$$eval('#lines .hdr', ns => ns.map(n => n.textContent)), ['Сегодня']);
   await p.locator('#lines .ln').nth(0).click({button: 'right'});
@@ -262,7 +294,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   // история сохраняется после перезапуска
   await p.reload();
   L = (await lineTexts()).map(clean);
-  eq('после перезапуска строк', L.length, 8);
+  eq('после перезапуска строк', L.length, 9);
   eq('после перезапуска тема', await p.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()), '#ffe08a');
   eq('ключи хранилища с префиксом', await p.evaluate(() => Object.keys(localStorage).every(k => k.startsWith('calc:'))), true);
 
@@ -330,6 +362,22 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК разряды отступом', await d.$$eval('.ln.draft .d.g', ns => ns.length), 1);
   eq('ПК вставка', clean(await d.$eval('.ln.draft', n => n.textContent)), '1234,5 × 2= 2 469');
   await d.keyboard.press('Escape');
+  // шаблон: из строки «120 × 1,2 + 45 × 1,5»
+  await d.locator('#lines .ln').nth(0).click({button: 'right'});
+  await d.click('#dlg .mi[data-r="tpl"]');
+  await d.fill('#tName', 'Две позиции');
+  await d.fill('#dlg [data-f="0"]', 'кол-во 1'); await d.fill('#dlg [data-f="2"]', 'кол-во 2');
+  await d.uncheck('#dlg [data-a="1"]'); await d.uncheck('#dlg [data-a="3"]');
+  await d.click('#dlg .btns .pri');
+  await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="tpls"]');
+  await d.click('#dlg .tp .pk');
+  eq('ПК шаблон: спрашивает 2 поля', await d.$$eval('#dlg [data-v]', ns => ns.length), 2);
+  await d.fill('#dlg [data-v="0"]', '10'); await d.fill('#dlg [data-v="2"]', '4'); await d.keyboard.press('Enter');
+  const TL = await dl();
+  eq('ПК шаблон: строка', TL[TL.length - 1], 'Две позиции10 × 1,2 + 4 × 1,5 = 18');
+  await d.reload();
+  eq('ПК шаблон сохранился', await d.evaluate(() => JSON.parse(localStorage.getItem('calc:settings')).tpl.length), 1);
+  await d.keyboard.press('Escape');
   await d.screenshot({path: OUT + '/pc-1.png'});
   const sciShown = () => d.$eval('#gSci', n => getComputedStyle(n).display !== 'none');
   eq('ПК: с функциями по умолчанию', await sciShown(), true);
@@ -354,7 +402,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.9']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.0']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();

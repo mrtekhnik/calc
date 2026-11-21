@@ -38,6 +38,21 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .lbl{display:block;font-size:.5em;line-height:1.3;color:var(--muted);margin-top:4px}
 .no{float:left;font-size:.5em;color:var(--muted);margin-top:.75em;min-width:1.6em;text-align:left}
 .ln.found{box-shadow:inset 3px 0 0 var(--acc)}
+/* выделение строк для суммы */
+.ln.pick{background:var(--actBg);box-shadow:inset 0 0 0 2px var(--acc)}
+body.picking .ln:not(.draft){cursor:pointer}
+#selBar{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:6px 8px;background:var(--bar);color:var(--barInk);font-size:14px;border-top:1px solid rgba(128,128,128,.25)}
+#selBar .st{flex:1 1 100%;font-size:13px;font-variant-numeric:tabular-nums}
+#selBar .st b{color:var(--acc);font-weight:600}
+#selBar button{padding:6px 10px;border-radius:9px;border:1px solid rgba(128,128,128,.45);font-size:14px;white-space:nowrap}
+#selBar button.pri{background:var(--eq);color:var(--eqInk);border-color:transparent}
+.fld{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.fld .inp{margin:0;flex:1}
+.fld label{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;opacity:.85}
+.fld .nm{flex:1.3}
+.tp{display:flex;align-items:center;gap:4px}
+.tp .pk{flex:1}
+.tp .x{width:40px;height:40px;border-radius:10px;opacity:.6}
 /* лента расчётов */
 #tape{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding:6px 10px 8px;background:var(--bg);overflow-anchor:none;background-image:var(--img);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:default}
 #lines{margin-top:auto}
@@ -72,7 +87,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .grids{flex:5;display:flex;flex-direction:column;min-height:0;touch-action:pan-y}
 .grid{flex:1;min-height:0}
 #gNum{grid-template-rows:repeat(5,1fr)}
-#gSci{grid-template-rows:repeat(5,1fr)}
+#gSci{grid-template-rows:repeat(6,1fr)}
 .k{display:flex;align-items:center;justify-content:center;min-height:0;font-size:25px;background:var(--key);color:var(--keyInk);user-select:none;-webkit-user-select:none}
 .k.f{background:var(--fn);color:var(--fnInk)}
 .k.eq{background:var(--eq);color:var(--eqInk);font-size:32px}
@@ -88,12 +103,12 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
   #pad{width:min(400px,44vw);height:auto;border-left:1px solid var(--pad)}
   #pad.min{display:none}
   #gSci,#gNum{display:grid!important}
-  .grids{flex:8}
+  .grids{flex:9}
   /* обычный калькулятор: без панели функций */
   body.basic #gSci{display:none!important}
   body.basic .grids{flex:5}
   body.basic #pad{width:min(340px,38vw)}
-  #gSci{flex:3;grid-template-rows:repeat(3,1fr);margin-bottom:1.5px}
+  #gSci{flex:4;grid-template-rows:repeat(4,1fr);margin-bottom:1.5px}
   #gNum{flex:5}
   .narrowOnly{display:none!important}
   .k{font-size:21px}.k.eq{font-size:26px}.k.sm{font-size:16px}
@@ -160,6 +175,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
     <div id="search" class="hidden"><input id="q" type="search" placeholder="Число или подпись" autocomplete="off"><span class="cnt" id="qCnt"></span><button class="ib" id="qClose" title="Закрыть поиск (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div id="pins" class="hidden"></div>
     <section id="tape"><div id="lines"></div></section>
+    <div id="selBar" class="hidden"></div>
   </div>
   <section id="pad">
     <div class="row" id="topRow"></div>
@@ -174,7 +190,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='1.9',APP_DATE='22.11.2026';
+const APP_VERSION='2.0',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -317,6 +333,9 @@ function activate(id,cur,sel,hl){
 }
 function commit(){
   if(!draft.length)return;
+  // незакрытые скобки закрываются при «=»
+  let open=0;for(const a of draft){if(a==='(')open++;else if(a===')')open--;}
+  if(open>0&&C.endsOperand(draft[draft.length-1]))draft=draft.concat(Array(open).fill(')'));
   const L=vis();
   const l={id:newId(),pos:(L.length?L[L.length-1].pos:0)+1,expr:draft,upd:now(),at:now(),del:0};
   if(pendingBrk&&L.length)l.brk=1;
@@ -388,6 +407,110 @@ function deleteLine(id){
   changed();
   if(deps.length)toast(`Строка удалена. В зависимых строках (${deps.length}) осталось число`);
 }
+// Подбор: какое число поставить в строку, чтобы результат этой (или зависимой) строки стал нужным
+async function goalSeek(id,numAt){
+  const l=byId(id);if(!l)return;
+  const run=C.runAt(l.expr,numAt);if(!run)return;
+  const x0=parseFloat(l.expr.slice(run[0],run[1]).join(''))||0;
+  // строки, на результат которых влияет это число: сама строка и все зависимые
+  const T=vis().filter(x=>x.id===id||C.dependsOn(lines,x.id,id));
+  const opt=T.map((x,i)=>{const v=refVal(x.id);return `<label class="pk" style="justify-content:flex-start"><input type="radio" name="gsT" value="${esc(x.id)}"${i===0?' checked':''}><span>${esc((x.label?x.label+': ':'')+C.exprText(x.expr,refVal,optsF()))}</span><b style="margin-left:auto">${v===undefined?'?':fmtV(v)}</b></label>`;}).join('');
+  const p=openDlg(`<h2>Подобрать число ${esc(pieceText(l.expr.slice(run[0],run[1])))}</h2>
+    <div class="txt">Результат какой строки должен получиться:</div><div class="live">${opt}</div>
+    <input class="inp" id="gsV" inputmode="decimal" placeholder="Нужный результат" autocomplete="off">
+    <div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Подобрать</button></div>`);
+  const inp=$('#gsV');inp.focus();
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();closeDlg('ok');}});
+  if(await p!=='ok')return;
+  const tid=($('#dlg input[name=gsT]:checked')||{}).value||id;
+  const tr=C.evaluate(C.parseText($('#gsV').value),()=>{throw new C.CalcError('x');});
+  if(!tr||tr.err){toast('Введите нужный результат числом');return;}
+  const make=x=>{const e=l.expr.slice(0,run[0]).concat(C.numberAtoms(x),l.expr.slice(run[1]));return e;};
+  const f=x=>{
+    const tmp=lines.map(q=>q.id===id?Object.assign({},q,{expr:make(x)}):q);
+    const r=C.computeAll(tmp).get(tid);
+    if(!r||r.err)throw new Error('нет результата');return r.v;
+  };
+  const sol=C.solve(f,tr.v,x0);
+  if(!sol){toast('Не удалось подобрать: такой результат недостижим');return;}
+  if(ed.id===id)leaveEdit();
+  pushUndo([{id,before:clone(l)}],'seek');
+  l.expr=make(sol.x);l.upd=now();changed();
+  toast(`Подобрано: ${fmtV(sol.x)}`);
+}
+// Шаблон: выражение строки, где числа — поля (с названием и значением по умолчанию).
+// Поле без галочки «спрашивать» остаётся постоянным. Ссылки при сохранении превращаются в числа.
+function tplParts(expr){
+  const flat=unlinkIn(expr,null).expr,parts=[],fields=[];
+  for(let i=0;i<flat.length;){
+    if(C.isNumCh(flat[i])){let j=i;while(j<flat.length&&C.isNumCh(flat[j]))j++;parts.push({f:fields.length});fields.push(flat.slice(i,j).join(''));i=j;}
+    else parts.push(flat[i++]);
+  }
+  return {parts,fields};
+}
+async function saveTemplate(id){
+  const l=byId(id);if(!l)return;
+  const {parts,fields}=tplParts(l.expr);
+  if(!fields.length){toast('В строке нет чисел');return;}
+  const shown=parts.map(a=>a&&a.f!==undefined?`[${String.fromCharCode(97+a.f%26)}]`:(C.BIN.has(a)?' '+(SYM[a]||a)+' ':(SYM[a]||a))).join('');
+  const rows=fields.map((v,i)=>`<div class="fld"><b style="width:22px">${String.fromCharCode(97+i%26)}</b><input class="inp nm" data-f="${i}" placeholder="название, напр. толщина" autocomplete="off"><span style="min-width:60px;text-align:right">${esc(v.replace('.',S.sep))}</span><label><input type="checkbox" data-a="${i}" checked>спрашивать</label></div>`).join('');
+  const p=openDlg(`<h2>Сохранить как шаблон</h2><div class="txt">${esc(shown)}</div>
+    <input class="inp" id="tName" placeholder="Название шаблона" value="${esc(l.label||'')}" autocomplete="off">
+    <div class="txt" style="margin:4px 0 6px">Числа в формуле — поля. Без галочки «спрашивать» число остаётся постоянным.</div>
+    <div class="live">${rows}</div>
+    <div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Сохранить</button></div>`);
+  $('#tName').focus();
+  if(await p!=='ok')return;
+  const name=$('#tName').value.trim()||C.exprText(l.expr,refVal,optsF());
+  const F=fields.map((v,i)=>({n:($(`#dlg [data-f="${i}"]`).value||'').trim()||String.fromCharCode(97+i%26),d:v,a:$(`#dlg [data-a="${i}"]`).checked}));
+  S.tpl=(S.tpl||[]).concat([{id:newId(),name:name.slice(0,60),parts,f:F}]);
+  saveNow();toast('Шаблон сохранён: меню → «Шаблоны»');
+}
+async function templatesDlg(){
+  const T=S.tpl||[];
+  if(!T.length){alertBox('Шаблоны','<p>Шаблонов пока нет.</p><p>Напишите формулу в строке, например «1250 × 2500 × 2 × 0,00000785» (масса листа), затем долгое нажатие на строку → «Сохранить как шаблон…» и дайте числам названия.</p>');return;}
+  const r=await openDlg(`<h2>Шаблоны</h2>${T.map(t=>`<div class="tp"><button class="pk" data-r="u:${t.id}"><span>${esc(t.name)}</span></button><button class="x" data-r="d:${t.id}" title="Удалить шаблон">✕</button></div>`).join('')}<div class="btns"><button data-r="no">Закрыть</button></div>`);
+  if(!r)return;
+  const t=T.find(x=>x.id===r.slice(2));if(!t)return;
+  if(r[0]==='d'){
+    if(await confirmBox('Удалить шаблон?',t.name,'Удалить',1)!=='ok')return templatesDlg();
+    S.tpl=T.filter(x=>x!==t);saveNow();toast('Шаблон удалён');return templatesDlg();
+  }
+  useTemplate(t);
+}
+async function useTemplate(t){
+  const ask=t.f.map((f,i)=>({f,i})).filter(x=>x.f.a);
+  const fill=async()=>{
+    if(!ask.length)return {};
+    const p=openDlg(`<h2>${esc(t.name)}</h2>${ask.map(({f,i})=>`<div class="fld"><span class="nm" style="flex:1">${esc(f.n)}</span><input class="inp" data-v="${i}" inputmode="decimal" value="${esc(f.d.replace('.',S.sep))}" autocomplete="off" style="flex:1"></div>`).join('')}
+      <div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Вставить</button></div>`);
+    const first=$('#dlg [data-v]');first.focus();first.select();
+    $('#dlg .box').onkeydown=e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.v!==undefined){e.preventDefault();closeDlg('ok');}};
+    if(await p!=='ok')return null;
+    const vals={};
+    for(const {i} of ask){
+      const r=C.evaluate(C.parseText($(`#dlg [data-v="${i}"]`).value),()=>{throw new C.CalcError('x');});
+      if(!r||r.err){toast(`Поле «${t.f[i].n}»: нужно число`);return null;}
+      vals[i]=r.v;
+    }
+    return vals;
+  };
+  const vals=await fill();if(!vals)return;
+  const expr=[];
+  for(const a of t.parts){
+    if(a&&a.f!==undefined){
+      const v=vals[a.f];
+      if(v===undefined)expr.push(...t.f[a.f].d.split(''));
+      else expr.push(...C.numberAtoms(v));
+    }else expr.push(a);
+  }
+  leaveEdit();
+  const L=vis();
+  const l={id:newId(),pos:(L.length?L[L.length-1].pos:0)+1,expr,upd:now(),at:now(),del:0,label:t.name};
+  if(pendingBrk&&L.length)l.brk=1;pendingBrk=false;
+  lines.push(l);pushUndo([{id:l.id,before:null}],'add');
+  justCommitted=l.id;changed();scrollBottom();
+}
 // Изменение свойства строки (подпись, закрепление, разделитель) с возможностью отмены
 function setProp(id,prop,val){
   const l=byId(id);if(!l)return;
@@ -415,7 +538,7 @@ async function clearAll(){
 }
 
 /* ---------- вывод ---------- */
-const SYM={'-':'−','lg2':'log₂','abs':'abs','√':'√','∛':'∛'};
+const SYM=Object.assign({'-':'−','abs':'abs','√':'√','∛':'∛',';':'; '},C.FN_NAME);
 function exprHTML(expr,active,sel,cur,hl){
   let h='',i=0;
   if(active&&hl&&!sel){const r=C.runAround(expr,cur);if(r){sel=r;}} // выделенное число — без курсора
@@ -527,6 +650,7 @@ function render(){
     n.classList.toggle('act',ed.id===l.id);
     n.classList.toggle('hidden',!ok);
     n.classList.toggle('found',!!query&&ok);
+    n.classList.toggle('pick',!!picked&&picked.has(l.id));
     place(n);
   });
   if(pendingBrk&&!query)header('h:pending','новый расчёт');
@@ -537,6 +661,7 @@ function render(){
   for(const [id,n] of nodes)if(id!=='draft'&&!keep.has(id)){n.remove();nodes.delete(id);}
   if(query)$('#qCnt').textContent=found?`найдено: ${found}`:'не найдено';
   renderPins(L);
+  renderSelBar();
   $('#undoBtn').disabled=!undoSt.length;$('#redoBtn').disabled=!redoSt.length;
 }
 // Закреплённые строки — сверху ленты; нажатие вставляет значение ссылкой, долгое нажатие — меню строки
@@ -551,9 +676,45 @@ function rerenderAll(){for(const n of nodes.values())n._h='';render();}
 const scrollBottom=()=>{const t=$('#tape');t.scrollTop=t.scrollHeight;};
 new ResizeObserver(()=>{if(ed.id==='draft')scrollBottom();}).observe($('#tape'));
 
+/* ---------- выделение строк: сумма, среднее, мин, макс ---------- */
+let picked=null; // Set номеров выделенных строк или null
+function startPick(id){leaveEdit();picked=new Set(id?[id]:[]);document.body.classList.add('picking');changed();}
+function stopPick(){picked=null;document.body.classList.remove('picking');$('#selBar').classList.add('hidden');render();}
+function togglePick(id){if(picked.has(id))picked.delete(id);else picked.add(id);render();}
+function pickedVals(){return vis().filter(l=>picked.has(l.id)).map(l=>({id:l.id,v:refVal(l.id)})).filter(x=>x.v!==undefined);}
+function renderSelBar(){
+  const bar=$('#selBar');
+  if(!picked){bar.classList.add('hidden');return;}
+  const P=pickedVals(),n=P.length,sum=P.reduce((a,x)=>a+x.v,0);
+  const R5=v=>C.evaluate(C.numberAtoms(v)).v;
+  const st=n?`Выбрано: ${n} · Σ <b>${fmtV(R5(sum))}</b> · ср. <b>${fmtV(R5(sum/n))}</b> · мин <b>${fmtV(Math.min(...P.map(x=>x.v)))}</b> · макс <b>${fmtV(Math.max(...P.map(x=>x.v)))}</b>`:'Нажимайте на строки, чтобы выделить';
+  const h=`<div class="st">${st}</div><button class="pri" data-s="sum"${n?'':' disabled'}>Σ в ввод</button><button data-s="avg"${n?'':' disabled'}>Ср. в ввод</button><button data-s="all">Все</button><button data-s="x">Готово</button>`;
+  if(bar._h!==h){bar.innerHTML=h;bar._h=h;}
+  bar.classList.remove('hidden');
+}
+// Сумма и среднее вставляются ссылками на строки — при правке строк пересчитаются
+function pickToDraft(avg){
+  const P=pickedVals();if(!P.length)return;
+  stopPick();activate('draft');
+  let st={atoms:draft.slice(),cur:draft.length,sel:null};
+  if(C.endsOperand(st.atoms[st.cur-1]))st=C.insert(st,'+');
+  if(avg&&P.length>1)st=C.insert(st,'(');
+  P.forEach((x,i)=>{if(i)st=C.insert(st,'+');st=C.insert(st,{r:x.id});});
+  if(avg&&P.length>1){st=C.insert(st,')');st=C.insert(st,'÷');for(const ch of String(P.length))st=C.insert(st,ch);}
+  setEd(st);scrollBottom();
+}
+$('#selBar').addEventListener('click',e=>{
+  const b=e.target.closest('[data-s]');if(!b)return;
+  const k=b.dataset.s;
+  if(k==='sum')pickToDraft(false);else if(k==='avg')pickToDraft(true);
+  else if(k==='all'){for(const l of vis())if(matches(l))picked.add(l.id);render();}
+  else stopPick();
+});
+
 /* ---------- нажатия в ленте ---------- */
 $('#tape').addEventListener('click',e=>{
   const ln=e.target.closest('.ln');
+  if(picked){if(ln&&ln.dataset.id!=='draft')togglePick(ln.dataset.id);return;}
   if(!ln){activate('draft');return;}
   const id=ln.dataset.id;
   const res=e.target.closest('.res');
@@ -629,8 +790,9 @@ async function lineMenu(id,refAt,numAt){
   const one=[];
   if(pv!==null)one.push({k:'pc',l:`Копировать число ${pv}`});
   if(piece&&id!=='draft')one.push({k:'pd',l:isRefAt?'Вставить в строку ввода (ссылкой)':'Вставить число в строку ввода'});
+  if(piece&&!isRefAt&&id!=='draft')one.push({k:'seek',l:'Подобрать это число…'});
   if(isRefAt)one.push({k:'un1',l:'Убрать эту ссылку (оставить число)'});
-  const pieceAct=k=>{if(k==='pc'){copyText(pv,'Скопировано: '+pv);return true;}if(k==='pd'){if(ed.id===id)leaveEdit();toDraft(piece);return true;}return false;};
+  const pieceAct=k=>{if(k==='seek'){goalSeek(id,numAt);return true;}if(k==='pc'){copyText(pv,'Скопировано: '+pv);return true;}if(k==='pd'){if(ed.id===id)leaveEdit();toDraft(piece);return true;}return false;};
   if(id==='draft'){
     const many=C.refsOf(draft).length>1?[{k:'unA',l:'Убрать все ссылки в строке'}]:[];
     const k=await choose('Строка ввода',[...one,...many,{k:'paste',l:'Вставить из буфера'},{k:'copy',l:'Копировать результат'},{k:'clr',l:'Очистить строку'}]);
@@ -650,6 +812,7 @@ async function lineMenu(id,refAt,numAt){
   const nDeps=C.directDependents(lines,id).filter(x=>x.id!==id).length;
   if(nDeps)items.push({k:'unD',l:`Отвязать строки, которые ссылаются сюда (${nDeps})`});
   if(r&&!r.err)items.push({k:'ins',l:'Вставить результат в строку ввода'},{k:'cr',l:'Копировать результат'});
+  items.push({k:'sel',l:'Выделить строки (сумма, среднее)'},{k:'tpl',l:'Сохранить как шаблон…'});
   items.push({k:'lbl',l:l.label?'Изменить подпись':'Подпись…'},{k:'pin',l:l.pin?'Открепить':'Закрепить сверху'},
     {k:'brk',l:l.brk?'Убрать разделитель «новый расчёт»':'Новый расчёт с этой строки'},
     {k:'cl',l:'Копировать строку'},{k:'edit',l:'Править строку'},{k:'above',l:'Вставить строку выше'},{k:'del',l:'Удалить строку',c:'dng'});
@@ -666,6 +829,8 @@ async function lineMenu(id,refAt,numAt){
     if(t!==null)setProp(id,'label',t.trim().slice(0,60)||undefined);
   }
   else if(k==='pin')setProp(id,'pin',l.pin?undefined:1);
+  else if(k==='sel')startPick(id);
+  else if(k==='tpl')saveTemplate(id);
   else if(k==='brk')setProp(id,'brk',l.brk?undefined:1);
   else if(k==='edit')activate(id);
   else if(k==='above')insertAbove(id);
@@ -714,7 +879,7 @@ const IC={
   clr:'<svg class="i" viewBox="0 0 24 24"><path d="M14 4l6 6"/><path d="M17 7 9.5 14.5"/><path d="M9.5 14.5 4 20h6l3.5-3.5z"/><path d="M6.5 17.5 9 15"/></svg>',
   back:'<svg class="i" viewBox="0 0 24 24"><path d="M21 5H9l-6 7 6 7h12z"/><path d="m12 9 6 6M18 9l-6 6"/></svg>',
 };
-const LBL={'-':'−','²':'x²','³':'x³','^':'xʸ','!':'x!','lg2':'log₂','abs':'|x|','123':'123'};
+const LBL={'-':'−','²':'x²','³':'x³','^':'xʸ','!':'x!','lg2':'log₂','abs':'|x|','123':'123','rnd':'окр','rup':'вверх','rdn':'вниз',';':';'};
 const btn=(k,cls,lbl,style)=>`<button class="k ${cls||''}" data-k="${esc(k)}" tabindex="-1"${style?` style="${style}"`:''}>${lbl!==undefined?lbl:(LBL[k]||esc(k))}</button>`;
 function applyWide(){ // режим монитора: обычный калькулятор или с функциями
   document.body.classList.toggle('basic',!S.wideSci);
@@ -734,6 +899,7 @@ function buildPad(){
     btn('√','sm')+btn('∛','sm')+btn('²','sm')+btn('³','sm')+
     btn('^','sm')+btn('!','sm')+btn('π','sm')+btn('e','sm')+
     btn('ln','sm')+btn('log','sm')+btn('lg2','sm')+btn('abs','sm')+
+    btn('rnd','sm')+btn('rup','sm')+btn('rdn','sm')+btn(';','sm')+
     btn('(','narrowOnly')+btn(')','narrowOnly')+btn('pick','narrowOnly sm','подп.')+btn('×','f narrowOnly')+
     btn('-','f narrowOnly')+btn('+','f narrowOnly')+btn('123','f narrowOnly sm')+btn('=','eq narrowOnly');
   setPage(sciPage);
@@ -764,7 +930,7 @@ $('#pad').addEventListener('click',e=>{
 });
 
 /* ---------- клавиатура ПК ---------- */
-const KEYMAP={'*':'×','/':'÷','x':'×','X':'×',':':'÷',',':'.','.':'.','+':'+','-':'-','^':'^','(':'(',')':')','%':'%','!':'!','p':'π','P':'π','r':'√','R':'√'};
+const KEYMAP={';':';','*':'×','/':'÷','x':'×','X':'×',':':'÷',',':'.','.':'.','+':'+','-':'-','^':'^','(':'(',')':')','%':'%','!':'!','p':'π','P':'π','r':'√','R':'√'};
 document.addEventListener('keydown',e=>{
   const dlgOpen=!$('#dlg').classList.contains('hidden');
   if(dlgOpen){if(e.key==='Escape'){e.preventDefault();closeDlg(null);}return;}
@@ -798,6 +964,7 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='ArrowRight')k='right';
   else if(e.key==='Home')k='home';
   else if(e.key==='End')k='end';
+  else if(e.key==='Escape'&&picked){e.preventDefault();stopPick();return;}
   else if(e.key==='Escape'){
     e.preventDefault();
     if(ed.id!=='draft'){leaveEdit();changed();}else key('C');
@@ -871,11 +1038,13 @@ $('#q').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();c
 /* ---------- меню ---------- */
 $('#menuBtn').onclick=async()=>{
   const k=await choose('Меню',[
-    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'pick',l:'Вставить по подписи'},
+    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'pick',l:'Вставить по подписи'},{k:'tpls',l:'Шаблоны'},{k:'sel',l:'Выделить строки (сумма)'},
     {k:'th',l:'Темы'},{k:'st',l:'Настройки'},{k:'cp',l:'Копировать всю историю'},{k:'clr',l:'Очистить историю',c:'dng'},
     {k:'help',l:'Как пользоваться'},{k:'up',l:'Проверить обновления'}],`Версия ${APP_VERSION} от ${APP_DATE}`);
   if(k==='brk'){pendingBrk=!pendingBrk;render();scrollBottom();}
   else if(k==='pick')pickByLabel('');
+  else if(k==='tpls')templatesDlg();
+  else if(k==='sel')startPick(null);
   else if(k==='th')themesDlg();
   else if(k==='st')settingsDlg();
   else if(k==='cp'){const L=vis();if(!L.length)return toast('История пуста');copyText(L.map(lineText).join('\n'),`Скопировано строк: ${L.length}`);}
@@ -962,6 +1131,10 @@ function helpDlg(){
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
   <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
+  <p><b>Сумма строк:</b> долгое нажатие на строку → «Выделить строки», затем нажимайте на нужные строки. Внизу видны сумма, среднее, минимум и максимум; «Σ в ввод» вставляет сумму ссылками — при правке строк она пересчитается.</p>
+  <p><b>Подбор числа:</b> долгое нажатие на число в строке → «Подобрать это число…», укажите, какой результат нужен (этой строки или зависимой), — число подберётся само.</p>
+  <p><b>Округление</b> (страница функций): окр(x; шаг) — до ближайшего, вверх(x; шаг), вниз(x; шаг). Шаг через «;», без шага — до целого. Пример: вверх(12,1; 0,5) = 12,5; окр(2,675; 0,01) = 2,68.</p>
+  <p><b>Шаблоны:</b> долгое нажатие на строку с формулой → «Сохранить как шаблон…», дайте числам названия. Меню → «Шаблоны» — ввести значения и получить строку расчёта.</p>
   <p><b>Подписи:</b> долгое нажатие на строку → «Подпись…» (например «лист 2 мм»). Значение строки с подписью можно вставить по подписи: кнопка «подп.» на странице функций, пункт меню или на ПК — просто начните печатать буквы (или Ctrl+L).</p>
   <p><b>Закреплённые строки</b> (долгое нажатие → «Закрепить сверху») видны над историей; нажатие вставляет значение в расчёт.</p>
   <p><b>Новый расчёт:</b> меню → «Начать новый расчёт» — следующая строка отделится чертой. История делится и по дням.</p>

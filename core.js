@@ -7,6 +7,8 @@
 //   '(' , ')'                            — скобки
 //   '%', '²', '³', '!'                   — действия после числа
 //   '√', '∛', 'ln', 'log', 'lg2', 'abs'  — функции перед числом
+//   'rnd', 'rup', 'rdn'                  — округление (до ближайшего, вверх, вниз) с шагом: окр(x; 0,5)
+//   ';'                                  — разделитель аргументов функции
 //   'π', 'e'                             — константы
 //   {r: id}                              — ссылка на результат строки с номером id
 // Результаты не хранятся: они всегда пересчитываются из выражений.
@@ -16,8 +18,10 @@
   const DIG = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
   const BIN = new Set(['+', '-', '×', '÷', '^']);
   const POST = new Set(['%', '²', '³', '!']);
-  const FN = new Set(['√', '∛', 'ln', 'log', 'lg2', 'abs']);
-  const FN_PAREN = new Set(['ln', 'log', 'lg2', 'abs']); // вставляются вместе с «(»
+  const FN = new Set(['√', '∛', 'ln', 'log', 'lg2', 'abs', 'rnd', 'rup', 'rdn']);
+  const FN_PAREN = new Set(['ln', 'log', 'lg2', 'abs', 'rnd', 'rup', 'rdn']); // вставляются вместе с «(»
+  const FN_ARGS = new Set(['rnd', 'rup', 'rdn']); // второй аргумент после «;» — шаг округления
+  const FN_NAME = {lg2: 'log₂', rnd: 'окр', rup: 'вверх', rdn: 'вниз'};
   const CONST = new Set(['π', 'e']);
   const SIG = 14; // значащих цифр в результате: убирает хвосты вида 0.30000000000000004
 
@@ -42,7 +46,7 @@
       }
       if (isRef(a)) out.push({k: 'ref', id: a.r});
       else if (BIN.has(a)) out.push({k: 'op', v: a});
-      else if (a === '(' || a === ')') out.push({k: a});
+      else if (a === '(' || a === ')' || a === ';') out.push({k: a});
       else if (POST.has(a)) out.push({k: 'post', v: a});
       else if (FN.has(a)) out.push({k: 'fn', v: a});
       else if (CONST.has(a)) out.push({k: 'const', v: a});
@@ -101,9 +105,19 @@
         p++;
         const e = expr();
         if (peek() && peek().k === ')') p++;
+        else if (peek() && peek().k === ';') throw new CalcError('«;» — только внутри окр(…), вверх(…), вниз(…)');
         else if (peek()) throw new CalcError('Нет действия между числами');
         // незакрытая скобка в конце строки закрывается сама
         return e;
+      }
+      if (k.k === 'fn' && FN_ARGS.has(k.v) && t[p + 1] && t[p + 1].k === '(') {
+        p += 2;
+        const x = expr();
+        let y = null;
+        if (peek() && peek().k === ';') { p++; y = expr(); }
+        if (peek() && peek().k === ')') p++;
+        else if (peek()) throw new CalcError(peek().k === ';' ? 'Лишняя «;»' : 'Нет действия между числами');
+        return {t: 'fn', v: k.v, x, y};
       }
       if (k.k === 'fn') {
         p++;
@@ -112,6 +126,7 @@
         return {t: 'fn', v: k.v, x};
       }
       if (k.k === ')') throw new CalcError('Лишняя скобка');
+      if (k.k === ';') throw new CalcError('«;» — только внутри окр(…), вверх(…), вниз(…)');
       if (k.k === 'post') throw new CalcError('Нет числа перед ' + k.v);
       throw new CalcError('Не хватает числа', 'incomplete');
     }
@@ -121,6 +136,7 @@
     if (p < t.length) {
       const k = t[p];
       if (k.k === ')') throw new CalcError('Лишняя скобка');
+      if (k.k === ';') throw new CalcError('«;» — только внутри окр(…), вверх(…), вниз(…)');
       throw new CalcError('Нет действия между числами');
     }
     return e;
@@ -153,6 +169,14 @@
       }
       case 'fn': {
         const a = ev(n.x);
+        if (FN_ARGS.has(n.v)) {
+          const step = n.y ? ev(n.y) : 1;
+          if (!(step > 0)) throw new CalcError('Шаг округления должен быть больше 0');
+          const q = +(a / step).toPrecision(12); // 2,675 ÷ 0,01 = 267,4999… → 267,5
+          const k = n.v === 'rup' ? Math.ceil(q) : n.v === 'rdn' ? Math.floor(q) : Math.sign(q) * Math.round(Math.abs(q));
+          v = k * step;
+          break;
+        }
         if (n.v === '√') { if (a < 0) throw new CalcError('Корень из отрицательного числа'); v = Math.sqrt(a); }
         else if (n.v === '∛') v = Math.cbrt(a);
         else if (n.v === 'abs') v = Math.abs(a);
@@ -259,6 +283,44 @@
     return out;
   }
 
+  /* ---------- подбор значения ---------- */
+  // Найти x, при котором f(x) = target. f может бросать исключение (ошибка в расчёте).
+  // Сначала метод секущих от x0, если не сошлось — поиск смены знака и деление пополам.
+  function solve(f, target, x0) {
+    const g = x => { try { const v = f(x); return Number.isFinite(v) ? v - target : NaN; } catch (e) { return NaN; } };
+    const tol = 1e-11 * Math.max(1, Math.abs(target));
+    const done = x => ({x: +x.toPrecision(12)});
+    if (Math.abs(g(x0)) <= tol) return done(x0);
+    let a = x0, b = x0 === 0 ? 1 : x0 * 1.01 + 1e-9, ga = g(a), gb = g(b);
+    for (let i = 0; i < 80 && Number.isFinite(ga) && Number.isFinite(gb); i++) {
+      if (Math.abs(gb) <= tol) return done(b);
+      if (gb === ga) break;
+      const x = b - gb * (b - a) / (gb - ga);
+      if (!Number.isFinite(x)) break;
+      a = b; ga = gb; b = x; gb = g(b);
+    }
+    if (Number.isFinite(gb) && Math.abs(gb) <= tol) return done(b);
+    // поиск отрезка со сменой знака вокруг x0
+    const g0 = g(x0), base = Math.abs(x0) || 1;
+    let lo = null, hi = null;
+    for (let k = 0; k < 70 && lo === null; k++) {
+      const d = base * 0.01 * Math.pow(1.6, k);
+      for (const x of [x0 + d, x0 - d]) {
+        const gx = g(x);
+        if (Number.isFinite(gx) && Number.isFinite(g0) && Math.sign(gx) !== Math.sign(g0)) { lo = x0; hi = x; break; }
+      }
+    }
+    if (lo === null) return null;
+    let glo = g(lo);
+    for (let i = 0; i < 200; i++) {
+      const m = (lo + hi) / 2, gm = g(m);
+      if (!Number.isFinite(gm)) return null;
+      if (Math.abs(gm) <= tol || Math.abs(hi - lo) <= 1e-13 * Math.max(1, Math.abs(m))) return done(m);
+      if (Math.sign(gm) === Math.sign(glo)) { lo = m; glo = gm; } else hi = m;
+    }
+    return null;
+  }
+
   /* ---------- форматирование ---------- */
   const GROUP = ' '; // узкий неразрывный пробел между тысячами
   function groupInt(s, on) { return on ? s.replace(/\B(?=(\d{3})+(?!\d))/g, GROUP) : s; }
@@ -354,6 +416,8 @@
       } else put(key);
     } else if (key === '(') {
       mulIfNeeded(); put('(');
+    } else if (key === ';') {
+      if (endsOperand(prev) && openParens(atoms, cur) > 0) put(';');
     } else if (key === ')') {
       if (endsOperand(prev) && openParens(atoms, cur) > 0) put(')');
     } else if (POST.has(key)) {
@@ -413,7 +477,8 @@
       }
       if (isRef(a)) { const v = refVal(a.r); s += v === undefined ? '?' : fmt(v, o); }
       else if (BIN.has(a)) s += ' ' + (a === '-' ? '−' : a) + ' ';
-      else if (a === 'lg2') s += 'log₂';
+      else if (FN_NAME[a]) s += FN_NAME[a];
+      else if (a === ';') s += '; ';
       else s += a;
       i++;
     }
@@ -421,7 +486,7 @@
   }
 
   const api = {CalcError, tokenize, parse, evaluate, computeAll, dependsOn, directDependents, refsOf, freezeRef,
-    numberAtoms, plain, fmt, fmtCopy, groupInt, insert, backspace, delForward, runAt, runAround, parseText, exprText,
+    numberAtoms, plain, fmt, solve, FN_ARGS, FN_NAME, fmtCopy, groupInt, insert, backspace, delForward, runAt, runAround, parseText, exprText,
     endsOperand, isRef, isNumCh, BIN, POST, FN, FN_PAREN, CONST, GROUP};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CalcCore = api;
