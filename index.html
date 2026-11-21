@@ -31,7 +31,8 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .num{white-space:nowrap}
 .d{padding:.12em 0;cursor:text}
 .d.g{margin-left:.22em}
-.op{cursor:pointer}
+.op{cursor:pointer;padding:.12em .3em;margin:0 -.3em}
+.op.sel{padding:0 .2em;margin:0 -.2em}
 .sy{cursor:pointer}
 .ref,.res.lk{color:var(--acc)}
 .ref{cursor:pointer}
@@ -140,7 +141,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='1.4',APP_DATE='21.11.2026';
+const APP_VERSION='1.5',APP_DATE='21.11.2026';
 const C=window.CalcCore;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -177,7 +178,7 @@ function applyTheme(){
 mqDark.addEventListener('change',()=>{if(S.theme==='auto')applyTheme();});
 
 /* ---------- состояние ---------- */
-const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false};
+const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true};
 let S=Object.assign({},DEF);
 let lines=[];          // {id,pos,expr,upd,del,tmp}
 let draft=[];          // атомы строки ввода
@@ -373,7 +374,7 @@ function exprHTML(expr,active,sel,cur,hl){
       const t=r&&!r.err?fmtV(r.v):'?';
       h+=`<span class="ref${r&&!r.err?'':' bad'}${inSel(i)?' sel':''}" data-i="${i}" data-r="${esc(a.r)}">${t}</span>`;
     }else if(C.BIN.has(a)){
-      h+=`<span class="op${inSel(i)?' sel':''}" data-i="${i}"> ${a==='-'?'−':a==='^'?'^':a} </span>`;
+      h+=` <span class="op${inSel(i)?' sel':''}" data-i="${i}">${a==='-'?'−':a}</span> `;
     }else{
       h+=`<span class="sy${inSel(i)?' sel':''}" data-i="${i}">${SYM[a]||a}</span>`;
     }
@@ -396,7 +397,13 @@ function lineHTML(l,refd){
 function draftHTML(){
   const act=ed.id==='draft';
   if(!draft.length)return (act?'<span class="caret"></span>':'')+'<span class="mut">0</span>';
-  let h=exprHTML(draft,act,act?ed.sel:null,act?ed.cur:0,act&&ed.hl);
+  let sel=act?ed.sel:null;
+  // подсветка того, что вводится сейчас: число целиком или последний знак (когда курсор в конце строки)
+  if(act&&!sel&&!ed.hl&&S.hlIn&&ed.cur===draft.length){
+    const j=draft.length-1;
+    sel=C.isNumCh(draft[j])?C.runAt(draft,j):[j,j+1];
+  }
+  let h=exprHTML(draft,act,sel,act?ed.cur:0,act&&ed.hl);
   const r=C.evaluate(draft,id=>{const x=results.get(id);if(!x||x.err)throw new C.CalcError('Ошибка в связанной строке');return x.v;});
   const single=draft.every(a=>C.isNumCh(a))||(draft.length===1&&C.isRef(draft[0]));
   if(r&&!r.err&&!single)h+=`<span class="pv">= ${fmtV(r.v)}</span>`;
@@ -719,6 +726,7 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Размер цифр</div>${seg('size',[['s','мелкий'],['m','средний'],['l','крупный']],S.size)}</div>
     <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
+    <div class="opt"><div class="lb">Подсвечивать вводимое<small>В строке ввода выделяется число или знак, который вы сейчас набираете</small></div>${seg('hlIn',[['true','да'],['false','нет']],S.hlIn)}</div>
     <div class="opt"><div class="lb">Вибрация при нажатии</div>${seg('vib',[['true','да'],['false','нет']],S.vib)}</div>
     <div class="opt"><div class="lb">Сохранять историю<small>Если выключить, история хранится только до закрытия приложения</small></div>${seg('keep',[['true','да'],['false','нет']],S.keep)}</div>
   </div><div class="btns"><button class="pri" data-r="ok">Готово</button></div>`);

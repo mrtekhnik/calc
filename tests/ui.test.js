@@ -19,7 +19,15 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   const lineTexts = () => p.$$eval('#lines .ln:not(.draft)', ns => ns.map(n => n.textContent));
   const draftText = () => p.$eval('.ln.draft', n => n.textContent);
 
-  await typeKeys('150000*0,155'); await tap('=');
+  const draftSel = () => p.$$eval('.ln.draft .sel', ns => ns.map(n => n.textContent));
+  await typeKeys('150000');
+  eq('подсветка числа при вводе', (await draftSel()).map(clean), ['150000']);
+  await tap('×');
+  eq('подсветка знака при вводе', await draftSel(), ['×']);
+  await typeKeys('0,155');
+  eq('подсветка второго числа', await draftSel(), ['0,155']);
+  await p.screenshot({path: OUT + '/phone-0-typing.png'});
+  await tap('=');
   await tap('-'); await typeKeys('23'); await tap('%'); await tap('=');   // продолжение от результата
   await tap('÷'); await typeKeys('5,5'); await tap('=');
   await tap('+'); await typeKeys('68'); await tap('=');
@@ -69,6 +77,10 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.locator('#lines .ln').nth(1).locator('.res').click();
   await tap('×'); await typeKeys('2');
   eq('предпросмотр', clean(await draftText()), '17 902,5 × 2= 35 805');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="hlIn"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+  eq('подсветка выключена', await draftSel(), []);
+  eq('курсор вместо подсветки', await p.$$eval('.ln.draft .caret', ns => ns.length), 1);
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="hlIn"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
   await tap('=');
   // цикл запрещён: правим строку 1, пытаемся вставить результат строки 2 (она зависит от 1)
   await firstLine.locator('.op').click();
@@ -235,7 +247,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.4']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.5']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
