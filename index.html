@@ -45,15 +45,14 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .pv.e{color:var(--err)}
 .mut{color:var(--muted)}
 /* клавиатура */
-#pad{flex:none;display:flex;flex-direction:column;background:var(--pad);height:min(56dvh,520px);padding-bottom:env(safe-area-inset-bottom)}
+/* высота клавиатуры — настройка (доля высоты экрана); верхний ряд такой же высоты, как остальные */
+#pad{flex:none;display:flex;flex-direction:column;background:var(--pad);height:calc(var(--padH,47)*1dvh);padding:1.5px 0 env(safe-area-inset-bottom)}
 #pad.min{height:auto}
-#pad.min .grids,#pad.min .dots{display:none}
-.row,.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--pad)}
-.row{flex:none;height:54px;margin-bottom:1px}
-.dots{flex:none;height:12px;background:var(--key);margin-bottom:1px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
-.dots i{width:7px;height:7px;border-radius:50%;background:var(--fnInk);opacity:.3}
-.dots i.on{opacity:.9}
-.grids{flex:1;display:flex;flex-direction:column;min-height:0;touch-action:pan-y}
+#pad.min .grids{display:none}
+#pad.min .row{flex:none;height:calc(var(--padH,47)*1dvh/6)}
+.row,.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5px;background:var(--pad)}
+.row{flex:1;min-height:40px;margin-bottom:1.5px}
+.grids{flex:5;display:flex;flex-direction:column;min-height:0;touch-action:pan-y}
 .grid{flex:1;min-height:0}
 #gNum{grid-template-rows:repeat(5,1fr)}
 #gSci{grid-template-rows:repeat(5,1fr)}
@@ -72,13 +71,13 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
   #pad{width:min(400px,44vw);height:auto;border-left:1px solid var(--pad)}
   #pad.min{display:none}
   #gSci,#gNum{display:grid!important}
-  #gSci{flex:3;grid-template-rows:repeat(3,1fr);margin-bottom:1px}
+  .grids{flex:8}
+  #gSci{flex:3;grid-template-rows:repeat(3,1fr);margin-bottom:1.5px}
   #gNum{flex:5}
-  .narrowOnly,.dots{display:none!important}
+  .narrowOnly{display:none!important}
   .k{font-size:21px}.k.eq{font-size:26px}.k.sm{font-size:16px}
 }
 @media not ((min-width:720px) and (min-aspect-ratio:1/1)){#kbBtn{display:none}}
-@media (max-height:520px) and (max-aspect-ratio:1/1){.row{height:44px}}
 /* окна */
 #dlg{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
 #dlg .box{background:var(--dlg);color:var(--dlgInk);width:min(560px,100%);max-height:88dvh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(14px + env(safe-area-inset-bottom))}
@@ -94,7 +93,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .mi:active{background:rgba(128,128,128,.18)}
 .mi.dng{color:var(--err)}
 .foot{font-size:13px;opacity:.65;padding:8px 10px 0}
-.opt{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid rgba(128,128,128,.2)}
+.opt{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid rgba(128,128,128,.2)}
 .opt:last-child{border-bottom:0}
 .opt .lb{font-size:15px}
 .opt .lb small{display:block;opacity:.65;font-size:12.5px}
@@ -130,7 +129,6 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
   <section id="tape"><div id="lines"></div></section>
   <section id="pad">
     <div class="row" id="topRow"></div>
-    <div class="dots" id="dots"><i class="on"></i><i></i></div>
     <div class="grids" id="grids">
       <div class="grid off" id="gSci"></div>
       <div class="grid" id="gNum"></div>
@@ -142,7 +140,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='1.1',APP_DATE='21.11.2026';
+const APP_VERSION='1.2',APP_DATE='21.11.2026';
 const C=window.CalcCore;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -150,7 +148,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const LS={lines:'calc:lines',draft:'calc:draft',set:'calc:settings'};
 
 /* ---------- темы ---------- */
-const DARK={bg:'#161a23',img:'none',ink:'#d8dce0',muted:'#7d8590',acc:'#34a44c',actBg:'rgba(255,255,255,.06)',selBg:'#229f44',selInk:'#fff',pad:'#232a38',key:'#2e3748',keyInk:'#d8dce0',fn:'#262e3b',fnInk:'#d8dce0',eq:'#31a84a',eqInk:'#fff',bar:'#161a23',barInk:'#d8dce0',err:'#ff7b72',dlg:'#222a37',dlgInk:'#d8dce0'};
+const DARK={bg:'#161a23',img:'none',ink:'#d8dce0',muted:'#7d8590',acc:'#34a44c',actBg:'rgba(255,255,255,.06)',selBg:'#229f44',selInk:'#fff',pad:'#19202f',key:'#2e3748',keyInk:'#d8dce0',fn:'#262e3b',fnInk:'#d8dce0',eq:'#31a84a',eqInk:'#fff',bar:'#161a23',barInk:'#d8dce0',err:'#ff7b72',dlg:'#222a37',dlgInk:'#d8dce0'};
 const LIGHT={bg:'#ffffff',img:'none',ink:'#1f2328',muted:'#8c959f',acc:'#1a7f37',actBg:'rgba(0,0,0,.055)',selBg:'',selInk:'#fff',pad:'#d5dae0',key:'#ffffff',keyInk:'#1f2328',fn:'#eef1f4',fnInk:'#1f2328',eq:'#1a7f37',eqInk:'#fff',bar:'#f3f5f7',barInk:'#1f2328',err:'#cf222e',dlg:'#ffffff',dlgInk:'#1f2328'};
 const T=(name,dark,o)=>{const t=Object.assign({},dark?DARK:LIGHT,o||{},{name,dark});if(o&&o.acc&&!o.selBg)t.selBg=t.acc;if(!t.selBg)t.selBg=t.acc;return t;};
 const THEMES={
@@ -179,7 +177,7 @@ function applyTheme(){
 mqDark.addEventListener('change',()=>{if(S.theme==='auto')applyTheme();});
 
 /* ---------- состояние ---------- */
-const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',padHidden:false};
+const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false};
 let S=Object.assign({},DEF);
 let lines=[];          // {id,pos,expr,upd,del,tmp}
 let draft=[];          // атомы строки ввода
@@ -553,7 +551,6 @@ function buildPad(){
 function setPage(sci){
   sciPage=sci;
   $('#gSci').classList.toggle('off',!sci);$('#gNum').classList.toggle('off',sci);
-  const d=$('#dots').children;d[0].classList.toggle('on',!sci);d[1].classList.toggle('on',sci);
 }
 function togglePad(){
   S.padHidden=!S.padHidden;buildPad();scheduleSave();
@@ -565,7 +562,6 @@ $('#grids').addEventListener('pointerup',e=>{
   const dx=e.clientX-sx,dy=e.clientY-sy;
   if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){swiped=true;setPage(!sciPage);setTimeout(()=>swiped=false,50);}
 });
-$('#dots').addEventListener('click',()=>setPage(!sciPage));
 $('#pad').addEventListener('mousedown',e=>e.preventDefault()); // кнопки не забирают фокус (Enter на ПК не нажмёт кнопку)
 $('#pad').addEventListener('click',e=>{
   const b=e.target.closest('[data-k]');if(!b||swiped)return;
@@ -676,6 +672,7 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Десятичный разделитель</div>${seg('sep',[[',','запятая'],['.','точка']],S.sep)}</div>
     <div class="opt"><div class="lb">Пробел между тысячами<small>1 234 567</small></div>${seg('group',[['true','да'],['false','нет']],S.group)}</div>
     <div class="opt"><div class="lb">Размер цифр</div>${seg('size',[['s','мелкий'],['m','средний'],['l','крупный']],S.size)}</div>
+    <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}</div>
     <div class="opt"><div class="lb">Вибрация при нажатии</div>${seg('vib',[['true','да'],['false','нет']],S.vib)}</div>
     <div class="opt"><div class="lb">Сохранять историю<small>Если выключить, история хранится только до закрытия приложения</small></div>${seg('keep',[['true','да'],['false','нет']],S.keep)}</div>
   </div><div class="btns"><button class="pri" data-r="ok">Готово</button></div>`);
@@ -685,7 +682,7 @@ function settingsDlg(){
     if(st){S.dec=Math.max(0,Math.min(10,S.dec+(st.dataset.st==='+'?1:-1)));$('#decV').textContent=S.dec;applySettings();return;}
     const b=e.target.closest('.seg button');if(!b)return;
     const name=b.parentElement.dataset.s;let v=b.dataset.v;
-    if(v==='true')v=true;else if(v==='false')v=false;
+    if(v==='true')v=true;else if(v==='false')v=false;else if(name==='kb')v=+v;
     if(name==='keep'&&v===false&&S.keep){
       closeDlg(null);
       if(await confirmBox('Не сохранять историю?','Сохранённая история будет удалена с этого устройства при следующем сохранении. Текущие строки останутся до закрытия приложения.','Выключить',1)!=='ok')return settingsDlg();
@@ -696,8 +693,13 @@ function settingsDlg(){
     applySettings();
   };
 }
+function applyDims(){
+  const st=document.documentElement.style;
+  st.setProperty('--zoom',{s:.85,m:1,l:1.18}[S.size]||1);
+  st.setProperty('--padH',S.kb||47);
+}
 function applySettings(){
-  document.documentElement.style.setProperty('--zoom',{s:.85,m:1,l:1.18}[S.size]||1);
+  applyDims();
   buildPad();rerenderAll();saveNow();
 }
 function helpDlg(){
@@ -706,13 +708,12 @@ function helpDlg(){
   <p><b>Связанные значения.</b> Нажмите на результат любой строки — он вставится в строку ввода как ссылка (выделен цветом). Если исходную строку исправить, связанная пересчитается. Если после «=» сразу нажать действие, расчёт продолжится от результата.</p>
   <p><b>Долгое нажатие</b> на строку (на ПК — правая кнопка мыши): копировать, вставить строку выше, удалить. При удалении строки в зависимых строках вместо ссылки остаётся число.</p>
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
-  <p><b>Функции:</b> проведите по клавиатуре влево или вправо (или нажмите на точки над ней). Кнопка ⌄ сворачивает клавиатуру.</p>
+  <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
   <p><b>Клавиатура ПК:</b> цифры и цифровой блок, + − * / ^ ( ) %, Enter — «=», Backspace/Delete, Esc — выход из правки или очистка ввода, ← → — курсор, ↑ ↓ — переход по строкам, Shift+Enter — вставить результат выбранной строки в ввод, Ctrl+C — копировать результат, Ctrl+V — вставить, Ctrl+Z / Ctrl+Y — отмена и повтор, p — π, r — √.</p>`);
 }
 
 /* ---------- запуск ---------- */
-load();applyTheme();
-document.documentElement.style.setProperty('--zoom',{s:.85,m:1,l:1.18}[S.size]||1);
+load();applyTheme();applyDims();
 buildPad();changed();scrollBottom();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 

@@ -102,15 +102,26 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('всего строк', L.length, 7);
 
   // функции: свайп по клавиатуре
-  const g = await p.$('#grids'); const b = await g.boundingBox();
-  await p.mouse.move(b.x + b.width * 0.8, b.y + 50); await p.mouse.down(); await p.mouse.move(b.x + b.width * 0.2, b.y + 55, {steps: 5}); await p.mouse.up();
+  const swipe = async () => { const b = await (await p.$('#grids')).boundingBox();
+    await p.mouse.move(b.x + b.width * 0.8, b.y + 50); await p.mouse.down(); await p.mouse.move(b.x + b.width * 0.2, b.y + 55, {steps: 5}); await p.mouse.up(); };
+  await swipe();
   eq('панель функций', await p.$eval('#gSci', n => !n.classList.contains('off')), true);
   await p.screenshot({path: OUT + '/phone-4-functions.png'});
   await tap('√'); await p.click('#pad [data-k="123"]'); await typeKeys('16'); await tap('+'); await typeKeys('3');
-  await p.click('#dots'); await tap('²'); await tap('=');
+  await swipe(); await tap('²'); await tap('=');
   L = (await lineTexts()).map(clean);
   eq('функции', L[L.length - 1], '√16 + 3x²'.replace('x²', '²') + ' = 13');
-  await p.click('#dots');
+  await swipe();
+  eq('цифры после свайпа', await p.$eval('#gNum', n => !n.classList.contains('off')), true);
+
+  const rowH = async () => p.evaluate(() => [document.querySelector('#topRow').getBoundingClientRect().height, document.querySelector('#gNum [data-k="7"]').getBoundingClientRect().height]);
+  let [h1, h2] = await rowH();
+  eq('верхний ряд как остальные', Math.abs(h1 - h2) < 2, true);
+  eq('высота клавиатуры обычная ≈47%', Math.round(await p.$eval('#pad', n => n.getBoundingClientRect().height) / 780 * 100), 47);
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="kb"] button[data-v="40"]'); await p.click('#dlg .btns .pri');
+  eq('высота клавиатуры ниже 40%', Math.round(await p.$eval('#pad', n => n.getBoundingClientRect().height) / 780 * 100), 40);
+  await p.screenshot({path: OUT + '/phone-11-kb40.png'});
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="kb"] button[data-v="47"]'); await p.click('#dlg .btns .pri');
 
   // свернуть клавиатуру
   await tap('tog');
@@ -195,7 +206,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.1']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.2']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
