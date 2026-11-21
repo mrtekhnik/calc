@@ -140,7 +140,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='1.3',APP_DATE='21.11.2026';
+const APP_VERSION='1.4',APP_DATE='21.11.2026';
 const C=window.CalcCore;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -717,7 +717,8 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Десятичный разделитель</div>${seg('sep',[[',','запятая'],['.','точка']],S.sep)}</div>
     <div class="opt"><div class="lb">Пробел между тысячами<small>1 234 567</small></div>${seg('group',[['true','да'],['false','нет']],S.group)}</div>
     <div class="opt"><div class="lb">Размер цифр</div>${seg('size',[['s','мелкий'],['m','средний'],['l','крупный']],S.size)}</div>
-    <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}</div>
+    <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
+      <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
     <div class="opt"><div class="lb">Вибрация при нажатии</div>${seg('vib',[['true','да'],['false','нет']],S.vib)}</div>
     <div class="opt"><div class="lb">Сохранять историю<small>Если выключить, история хранится только до закрытия приложения</small></div>${seg('keep',[['true','да'],['false','нет']],S.keep)}</div>
   </div><div class="btns"><button class="pri" data-r="ok">Готово</button></div>`);
@@ -725,6 +726,10 @@ function settingsDlg(){
   box.onclick=async e=>{
     const st=e.target.closest('[data-st]');
     if(st){S.dec=Math.max(0,Math.min(10,S.dec+(st.dataset.st==='+'?1:-1)));$('#decV').textContent=S.dec;applySettings();return;}
+    const ks=e.target.closest('[data-kst]');
+    if(ks){ // точная высота клавиатуры: 30–70 % высоты экрана, шаг 1
+      S.kb=Math.max(30,Math.min(70,(S.kb||47)+(ks.dataset.kst==='+'?1:-1)));
+      syncKb();applySettings();return;}
     const b=e.target.closest('.seg button');if(!b)return;
     const name=b.parentElement.dataset.s;let v=b.dataset.v;
     if(v==='true')v=true;else if(v==='false')v=false;else if(name==='kb')v=+v;
@@ -734,6 +739,7 @@ function settingsDlg(){
       S.keep=false;applySettings();return settingsDlg();
     }
     S[name]=v;
+    if(name==='kb'){syncKb();applySettings();return;}
     b.parentElement.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
     applySettings();
   };
@@ -742,6 +748,10 @@ function applyDims(){
   const st=document.documentElement.style;
   st.setProperty('--zoom',{s:.85,m:1,l:1.18}[S.size]||1);
   st.setProperty('--padH',S.kb||47);
+}
+function syncKb(){ // число и кнопки высоты клавиатуры в окне настроек — согласованно
+  const v=$('#kbV');if(v)v.textContent=S.kb+'%';
+  document.querySelectorAll('#dlg .seg[data-s="kb"] button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S.kb));
 }
 function applySettings(){
   applyDims();

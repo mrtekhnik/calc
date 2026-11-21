@@ -139,6 +139,17 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="kb"] button[data-v="40"]'); await p.click('#dlg .btns .pri');
   eq('высота клавиатуры ниже 40%', Math.round(await p.$eval('#pad', n => n.getBoundingClientRect().height) / 780 * 100), 40);
   await p.screenshot({path: OUT + '/phone-11-kb40.png'});
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]');
+  for (let i = 0; i < 3; i++) await p.click('#dlg [data-kst="+"]');
+  eq('точная высота: число', await p.textContent('#kbV'), '43%');
+  eq('точная высота: кнопки без выбора', await p.$$eval('#dlg .seg[data-s="kb"] button.on', ns => ns.length), 0);
+  eq('точная высота 43%', Math.round(await p.$eval('#pad', n => n.getBoundingClientRect().height) / 780 * 100), 43);
+  await p.screenshot({path: OUT + '/phone-12-settings.png'});
+  for (let i = 0; i < 50; i++) await p.click('#dlg [data-kst="-"]');
+  eq('нижний предел 30%', await p.textContent('#kbV'), '30%');
+  await p.click('#dlg .seg[data-s="kb"] button[data-v="54"]');
+  eq('пресет обновил число', await p.textContent('#kbV'), '54%');
+  await p.click('#dlg .btns .pri');
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="kb"] button[data-v="47"]'); await p.click('#dlg .btns .pri');
 
   // свернуть клавиатуру
@@ -224,7 +235,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.3']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.4']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
