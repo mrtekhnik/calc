@@ -123,6 +123,36 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.click('#undoBtn');
   eq('отмена отвязки', await p.locator('#lines .ln').nth(1).locator('.ref').count(), 1);
 
+  // выделить число в истории и нажать «=» — число переносится в строку ввода
+  await p.locator('#lines .ln').nth(3).locator('.d').last().click(); // «8» в «68»
+  await tap('=');
+  eq('перенос числа по «=»', clean(await draftText()), '68');
+  eq('правка закончена после переноса', await p.$$eval('#lines .ln.act', ns => ns.length), 0);
+  await tap('+');
+  await p.locator('#lines .ln').nth(0).locator('.d').nth(8).click(); // «1» в «0,155»
+  await tap('=');
+  eq('перенос после действия', clean(await draftText()).split('=')[0].trim(), '68 + 0,155');
+  await tap('C');
+  // если число исправили, «=» только заканчивает правку
+  await p.locator('#lines .ln').nth(3).locator('.d').last().click(); await tap('9'); await tap('=');
+  eq('после правки не переносится', clean(await draftText()), '0');
+  await p.click('#undoBtn');
+  // долгое нажатие на число: копировать и вставить в строку ввода
+  await phone.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await p.locator('#lines .ln').nth(0).locator('.d').nth(8).click({button: 'right'});
+  eq('пункты меню числа', await p.$$eval('#dlg .mi', ns => ns.slice(0, 2).map(n => n.textContent)), ['Копировать число 0,155', 'Вставить число в строку ввода']);
+  await p.click('#dlg .mi[data-r="pc"]');
+  eq('скопировано число', await p.evaluate(() => navigator.clipboard.readText()), '0,155');
+  await p.locator('#lines .ln').nth(0).locator('.d').nth(8).click({button: 'right'});
+  await p.click('#dlg .mi[data-r="pd"]');
+  eq('вставлено число', clean(await draftText()), '0,155');
+  await tap('C');
+  // долгое нажатие на ссылку: вставить ссылкой
+  await p.locator('#lines .ln').nth(3).locator('.ref').click({button: 'right'});
+  await p.click('#dlg .mi[data-r="pd"]');
+  eq('вставлена ссылка', await p.$$eval('.ln.draft .ref', ns => ns.length), 1);
+  await tap('C');
+
   // вставка строки выше
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
   await p.click('#dlg .mi:has-text("Вставить строку выше")');
@@ -255,7 +285,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.6']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.7']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
