@@ -31,12 +31,12 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .num{white-space:nowrap}
 .d{padding:.12em 0;cursor:text}
 .d.g{margin-left:.22em}
-.op{color:var(--muted);cursor:pointer}
+.op{cursor:pointer}
 .sy{cursor:pointer}
 .ref,.res.lk{color:var(--acc)}
 .ref{cursor:pointer}
 .res{cursor:pointer}
-.eqs{color:var(--muted)}
+.eqs{}
 .sel{background:var(--selBg);color:var(--selInk)!important;border-radius:.45em;padding:0 .18em}
 .caret{display:inline-block;width:2px;height:1.05em;background:var(--acc);vertical-align:-.17em;margin:0 -1px;position:relative;z-index:1}
 .err{color:var(--err);font-size:.62em;white-space:nowrap}
@@ -50,7 +50,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 #pad.min .grids,#pad.min .dots{display:none}
 .row,.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--pad)}
 .row{flex:none;height:54px;margin-bottom:1px}
-.dots{flex:none;height:14px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+.dots{flex:none;height:12px;background:var(--key);margin-bottom:1px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
 .dots i{width:7px;height:7px;border-radius:50%;background:var(--fnInk);opacity:.3}
 .dots i.on{opacity:.9}
 .grids{flex:1;display:flex;flex-direction:column;min-height:0;touch-action:pan-y}
@@ -142,7 +142,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='1.0',APP_DATE='21.11.2026';
+const APP_VERSION='1.1',APP_DATE='21.11.2026';
 const C=window.CalcCore;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -150,9 +150,9 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const LS={lines:'calc:lines',draft:'calc:draft',set:'calc:settings'};
 
 /* ---------- темы ---------- */
-const DARK={bg:'#161b22',img:'none',ink:'#e6e9ee',muted:'#7d8590',acc:'#3fb950',actBg:'rgba(255,255,255,.07)',selBg:'',selInk:'#fff',pad:'#0e1217',key:'#232a33',keyInk:'#e6e9ee',fn:'#1b2129',fnInk:'#c9d1d9',eq:'#2ea043',eqInk:'#fff',bar:'#0e1217',barInk:'#e6e9ee',err:'#ff7b72',dlg:'#1f252e',dlgInk:'#e6e9ee'};
+const DARK={bg:'#161a23',img:'none',ink:'#d8dce0',muted:'#7d8590',acc:'#34a44c',actBg:'rgba(255,255,255,.06)',selBg:'#229f44',selInk:'#fff',pad:'#232a38',key:'#2e3748',keyInk:'#d8dce0',fn:'#262e3b',fnInk:'#d8dce0',eq:'#31a84a',eqInk:'#fff',bar:'#161a23',barInk:'#d8dce0',err:'#ff7b72',dlg:'#222a37',dlgInk:'#d8dce0'};
 const LIGHT={bg:'#ffffff',img:'none',ink:'#1f2328',muted:'#8c959f',acc:'#1a7f37',actBg:'rgba(0,0,0,.055)',selBg:'',selInk:'#fff',pad:'#d5dae0',key:'#ffffff',keyInk:'#1f2328',fn:'#eef1f4',fnInk:'#1f2328',eq:'#1a7f37',eqInk:'#fff',bar:'#f3f5f7',barInk:'#1f2328',err:'#cf222e',dlg:'#ffffff',dlgInk:'#1f2328'};
-const T=(name,dark,o)=>{const t=Object.assign({},dark?DARK:LIGHT,o||{},{name,dark});if(!t.selBg)t.selBg=t.acc;return t;};
+const T=(name,dark,o)=>{const t=Object.assign({},dark?DARK:LIGHT,o||{},{name,dark});if(o&&o.acc&&!o.selBg)t.selBg=t.acc;if(!t.selBg)t.selBg=t.acc;return t;};
 const THEMES={
   dark:T('Графит',1),
   light:T('Светлая',0),
@@ -183,7 +183,7 @@ const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',pa
 let S=Object.assign({},DEF);
 let lines=[];          // {id,pos,expr,upd,del,tmp}
 let draft=[];          // атомы строки ввода
-let ed={id:'draft',atoms:[],cur:0,sel:null}; // что сейчас правится
+let ed={id:'draft',atoms:[],cur:0,sel:null,hl:false}; // что сейчас правится; hl — число у курсора выделено (ввод дописывает в него)
 let results=new Map();
 let justCommitted=null; // после «=» следующее действие продолжает расчёт от результата
 let undoSt=[],redoSt=[],session=0;
@@ -253,7 +253,8 @@ function setEd(st){
       l.expr=st.atoms;l.upd=now();if(l.tmp&&st.atoms.length)delete l.tmp;
     }
   }
-  ed={id:ed.id,atoms:st.atoms,cur:st.cur,sel:st.sel||null};
+  const hl=!!(ed.hl&&!st.sel&&C.runAround(st.atoms,st.cur)&&C.isNumCh(st.atoms[st.cur-1]));
+  ed={id:ed.id,atoms:st.atoms,cur:st.cur,sel:st.sel||null,hl};
   if(changedAtoms)justCommitted=null;
   changed();
 }
@@ -267,14 +268,14 @@ function leaveEdit(){
   session++;
   ed={id:'draft',atoms:draft,cur:draft.length,sel:null};
 }
-function activate(id,cur,sel){
+function activate(id,cur,sel,hl){
   if(id!==ed.id){
     leaveEdit();
     if(id==='draft')ed={id:'draft',atoms:draft,cur:draft.length,sel:null};
     else{const l=byId(id);if(!l)return;ed={id,atoms:l.expr,cur:l.expr.length,sel:null};}
   }
   if(cur!==undefined)ed.cur=cur;
-  ed.sel=sel||null;
+  ed.sel=sel||null;ed.hl=!!hl;
   justCommitted=null;
   render();
   const el=document.querySelector(`.ln[data-id="${id}"]`);if(el)el.scrollIntoView({block:'nearest'});
@@ -299,7 +300,7 @@ function key(k){
       if(k==='left')c=Math.max(0,c-1);else if(k==='right')c=Math.min(ed.atoms.length,c+1);
       else if(k==='home')c=0;else c=ed.atoms.length;
     }
-    ed.cur=c;ed.sel=null;render();return;
+    ed.cur=c;ed.sel=null;ed.hl=false;render();return;
   }
   if(C.isRef(k)&&ed.id!=='draft'&&C.dependsOn(lines,k.r,ed.id)){
     toast(k.r===ed.id?'Строка не может ссылаться на себя':'Нельзя: эта строка сама зависит от редактируемой — получится цикл');return;}
@@ -348,8 +349,9 @@ async function clearAll(){
 
 /* ---------- вывод ---------- */
 const SYM={'-':'−','lg2':'log₂','abs':'abs','√':'√','∛':'∛'};
-function exprHTML(expr,active,sel,cur){
+function exprHTML(expr,active,sel,cur,hl){
   let h='',i=0;
+  if(active&&hl&&!sel){const r=C.runAround(expr,cur);if(r){sel=r;}} // выделенное число — без курсора
   const caret=()=>'<span class="caret"></span>';
   const inSel=j=>sel&&j>=sel[0]&&j<sel[1];
   while(i<expr.length){
@@ -385,7 +387,7 @@ function exprHTML(expr,active,sel,cur){
 function lineHTML(l,refd){
   const act=ed.id===l.id,r=results.get(l.id);
   const expr=act?ed.atoms:l.expr;
-  let h=exprHTML(expr,act,act?ed.sel:null,act?ed.cur:0);
+  let h=exprHTML(expr,act,act?ed.sel:null,act?ed.cur:0,act&&ed.hl);
   if(!expr.length)h+='<span class="mut">пустая строка</span>';
   if(r){
     if(r.err)h+=` <span class="eqs">=</span> <span class="err">${esc(r.err)}</span>`;
@@ -396,7 +398,7 @@ function lineHTML(l,refd){
 function draftHTML(){
   const act=ed.id==='draft';
   if(!draft.length)return (act?'<span class="caret"></span>':'')+'<span class="mut">0</span>';
-  let h=exprHTML(draft,act,act?ed.sel:null,act?ed.cur:0);
+  let h=exprHTML(draft,act,act?ed.sel:null,act?ed.cur:0,act&&ed.hl);
   const r=C.evaluate(draft,id=>{const x=results.get(id);if(!x||x.err)throw new C.CalcError('Ошибка в связанной строке');return x.v;});
   const single=draft.every(a=>C.isNumCh(a))||(draft.length===1&&C.isRef(draft[0]));
   if(r&&!r.err&&!single)h+=`<span class="pv">= ${fmtV(r.v)}</span>`;
@@ -448,11 +450,11 @@ $('#tape').addEventListener('click',e=>{
   const wasActive=ed.id===id;
   if(at.classList.contains('d')){
     const run=C.runAt(atoms,i);
-    const inRun=wasActive&&(ed.sel?(ed.sel[0]===run[0]&&ed.sel[1]===run[1]):(ed.cur>=run[0]&&ed.cur<=run[1]));
+    const inRun=wasActive&&!ed.sel&&ed.cur>=run[0]&&ed.cur<=run[1];
     if(inRun){ // второе нажатие по числу — курсор между цифрами
       const r=at.getBoundingClientRect();
-      activate(id,e.clientX<r.left+r.width/2?i:i+1,null);
-    }else activate(id,run[1],run);
+      activate(id,e.clientX<r.left+r.width/2?i:i+1,null,false);
+    }else activate(id,run[1],null,true); // первое — число выделено, ввод дописывает в конец
   }else{
     if(wasActive&&ed.sel&&ed.sel[0]===i&&ed.sel[1]===i+1)activate(id,i+1,null);
     else activate(id,i+1,[i,i+1]);
@@ -534,7 +536,7 @@ function buildPad(){
   $('#topRow').innerHTML=btn('tog','f',S.padHidden?IC.up:IC.down).replace('class="k','id="kTog" class="k')+btn('C','f',IC.clr)+btn('back','f',IC.back)+btn('÷','f');
   const sep=`<span class="sepK">${S.sep}</span>`;
   $('#gNum').innerHTML=
-    btn('(','f')+btn(')','f')+btn('%','f')+btn('×','f')+
+    btn('(')+btn(')')+btn('%')+btn('×','f')+
     btn('7')+btn('8')+btn('9')+btn('-','f')+
     btn('4')+btn('5')+btn('6')+btn('+','f')+
     btn('1')+btn('2')+btn('3')+btn('=','eq','=','grid-row:4/span 2;grid-column:4')+
@@ -543,7 +545,7 @@ function buildPad(){
     btn('√','sm')+btn('∛','sm')+btn('²','sm')+btn('³','sm')+
     btn('^','sm')+btn('!','sm')+btn('π','sm')+btn('e','sm')+
     btn('ln','sm')+btn('log','sm')+btn('lg2','sm')+btn('abs','sm')+
-    btn('(','f narrowOnly')+btn(')','f narrowOnly')+btn('%','f narrowOnly')+btn('×','f narrowOnly')+
+    btn('(','narrowOnly')+btn(')','narrowOnly')+btn('%','narrowOnly')+btn('×','f narrowOnly')+
     btn('-','f narrowOnly')+btn('+','f narrowOnly')+btn('123','f narrowOnly sm')+btn('=','eq narrowOnly');
   setPage(sciPage);
   $('#pad').classList.toggle('min',S.padHidden);
@@ -700,7 +702,7 @@ function applySettings(){
 }
 function helpDlg(){
   alertBox('Как пользоваться',`
-  <p><b>Правка в истории.</b> Нажмите на число в любой строке — оно выделится, и ввод с клавиатуры заменит его. Нажмите на выделенное число ещё раз — появится курсор между цифрами для точной правки. Так же правятся действия (+ − × ÷). Все строки, которые ссылаются на исправленную, пересчитываются сразу. «=» заканчивает правку.</p>
+  <p><b>Правка в истории.</b> Нажмите на число в любой строке — оно выделится: цифры дописываются в конец, ⌫ стирает по одному знаку. Нажмите на выделенное число ещё раз — появится курсор между цифрами для точной правки. Так же правятся действия (+ − × ÷). Все строки, которые ссылаются на исправленную, пересчитываются сразу. «=» заканчивает правку.</p>
   <p><b>Связанные значения.</b> Нажмите на результат любой строки — он вставится в строку ввода как ссылка (выделен цветом). Если исходную строку исправить, связанная пересчитается. Если после «=» сразу нажать действие, расчёт продолжится от результата.</p>
   <p><b>Долгое нажатие</b> на строку (на ПК — правая кнопка мыши): копировать, вставить строку выше, удалить. При удалении строки в зависимых строках вместо ссылки остаётся число.</p>
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
