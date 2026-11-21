@@ -140,7 +140,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='1.2',APP_DATE='21.11.2026';
+const APP_VERSION='1.3',APP_DATE='21.11.2026';
 const C=window.CalcCore;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -462,23 +462,68 @@ $('#tape').addEventListener('click',e=>{
 $('#tape').addEventListener('contextmenu',e=>{
   e.preventDefault();
   const ln=e.target.closest('.ln');if(!ln)return;
-  lineMenu(ln.dataset.id);
+  const ref=e.target.closest('.ref');
+  lineMenu(ln.dataset.id,ref?+ref.dataset.i:null);
 });
-async function lineMenu(id){
+// Убрать ссылки: вместо ссылки в строке остаётся число (её значение сейчас), связь с исходной строкой пропадает.
+// at — номер атома одной ссылки; null — все ссылки строки
+function unlinkIn(expr,at){
+  const out=[];let n=0,bad=0;
+  expr.forEach((a,i)=>{
+    if(C.isRef(a)&&(at===null||at===i)){
+      const v=refVal(a.r);
+      if(v===undefined){bad++;out.push(a);}else{out.push(...C.numberAtoms(v));n++;}
+    }else out.push(a);
+  });
+  return {expr:out,n,bad};
+}
+function unlinkLine(id,at){
+  const src=id==='draft'?draft:(byId(id)||{}).expr;if(!src)return;
+  const u=unlinkIn(src,at);
+  if(!u.n){toast(u.bad?'У ссылки нет значения — сначала исправьте исходную строку':'Ссылок нет');return;}
+  if(id==='draft'){draft=u.expr;if(ed.id==='draft')ed={id:'draft',atoms:draft,cur:draft.length,sel:null,hl:false};changed();}
+  else if(ed.id===id){setEd({atoms:u.expr,cur:u.expr.length,sel:null});}
+  else{const l=byId(id);pushUndo([{id,before:clone(l)}],'unlink');l.expr=u.expr;l.upd=now();changed();}
+  toast(u.n===1?'Ссылка убрана — осталось число':`Ссылок убрано: ${u.n} — остались числа`);
+}
+function unlinkDependents(id){
+  const deps=C.directDependents(lines,id).filter(x=>x.id!==id);
+  const v=refVal(id);
+  if(!deps.length&&!C.refsOf(draft).includes(id))return;
+  if(v===undefined){toast('В строке нет результата');return;}
+  if(deps.some(d=>d.id===ed.id))leaveEdit();
+  pushUndo(deps.map(d=>({id:d.id,before:clone(d)})),'unlink');
+  for(const d of deps){d.expr=C.freezeRef(d.expr,id,v);d.upd=now();}
+  if(C.refsOf(draft).includes(id)){draft=C.freezeRef(draft,id,v);if(ed.id==='draft')ed={id:'draft',atoms:draft,cur:draft.length,sel:null,hl:false};}
+  changed();
+  toast(`Отвязано строк: ${deps.length}`);
+}
+async function lineMenu(id,refAt){
+  const one=refAt!==null&&refAt!==undefined?[{k:'un1',l:'Убрать эту ссылку (оставить число)'}]:[];
   if(id==='draft'){
-    const k=await choose('Строка ввода',[{k:'paste',l:'Вставить из буфера'},{k:'copy',l:'Копировать результат'},{k:'clr',l:'Очистить строку'}]);
-    if(k==='paste')pasteFromClipboard();
+    const many=C.refsOf(draft).length>1?[{k:'unA',l:'Убрать все ссылки в строке'}]:[];
+    const k=await choose('Строка ввода',[...one,...many,{k:'paste',l:'Вставить из буфера'},{k:'copy',l:'Копировать результат'},{k:'clr',l:'Очистить строку'}]);
+    if(k==='un1')unlinkLine('draft',refAt);
+    else if(k==='unA')unlinkLine('draft',null);
+    else if(k==='paste')pasteFromClipboard();
     else if(k==='copy')copyResult('draft');
     else if(k==='clr'){activate('draft');key('C');}
     return;
   }
   const l=byId(id);if(!l)return;
   const r=results.get(id);
-  const items=[];
+  const items=[...one];
+  const nRefs=C.refsOf(l.expr).length;
+  if(nRefs>1||(nRefs===1&&!one.length))items.push({k:'unA',l:nRefs>1?`Убрать все ссылки в строке (${nRefs})`:'Убрать ссылку (оставить число)'});
+  const nDeps=C.directDependents(lines,id).filter(x=>x.id!==id).length;
+  if(nDeps)items.push({k:'unD',l:`Отвязать строки, которые ссылаются сюда (${nDeps})`});
   if(r&&!r.err)items.push({k:'ins',l:'Вставить результат в строку ввода'},{k:'cr',l:'Копировать результат'});
   items.push({k:'cl',l:'Копировать строку'},{k:'edit',l:'Править строку'},{k:'above',l:'Вставить строку выше'},{k:'del',l:'Удалить строку',c:'dng'});
   const k=await choose(C.exprText(l.expr,refVal,optsF())+(r&&!r.err?' = '+fmtV(r.v):''),items);
-  if(k==='ins'){activate('draft');insertRef(id);}
+  if(k==='un1')unlinkLine(id,refAt);
+  else if(k==='unA')unlinkLine(id,null);
+  else if(k==='unD')unlinkDependents(id);
+  else if(k==='ins'){activate('draft');insertRef(id);}
   else if(k==='cr')copyResult(id);
   else if(k==='cl')copyText(lineText(l));
   else if(k==='edit')activate(id);
@@ -706,6 +751,7 @@ function helpDlg(){
   alertBox('Как пользоваться',`
   <p><b>Правка в истории.</b> Нажмите на число в любой строке — оно выделится: цифры дописываются в конец, ⌫ стирает по одному знаку. Нажмите на выделенное число ещё раз — появится курсор между цифрами для точной правки. Так же правятся действия (+ − × ÷). Все строки, которые ссылаются на исправленную, пересчитываются сразу. «=» заканчивает правку.</p>
   <p><b>Связанные значения.</b> Нажмите на результат любой строки — он вставится в строку ввода как ссылка (выделен цветом). Если исходную строку исправить, связанная пересчитается. Если после «=» сразу нажать действие, расчёт продолжится от результата.</p>
+  <p><b>Убрать ссылку:</b> долгое нажатие на зелёное число — «Убрать эту ссылку»: вместо неё останется обычное число, и строка перестанет зависеть от исходной. В меню строки можно убрать все её ссылки или отвязать все строки, которые ссылаются на неё.</p>
   <p><b>Долгое нажатие</b> на строку (на ПК — правая кнопка мыши): копировать, вставить строку выше, удалить. При удалении строки в зависимых строках вместо ссылки остаётся число.</p>
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>

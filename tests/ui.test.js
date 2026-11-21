@@ -93,6 +93,24 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   L = (await lineTexts()).map(clean);
   eq('удаление отменено', L[1], '23 250 − 23% = 17 902,5');
 
+  // убрать ссылку: долгое нажатие на зелёное число в строке 3
+  await p.locator('#lines .ln').nth(2).locator('.ref').click({button: 'right'});
+  await p.click('#dlg .mi[data-r="un1"]');
+  eq('ссылка убрана', await p.locator('#lines .ln').nth(2).locator('.ref').count(), 0);
+  eq('значение то же', clean((await lineTexts())[2]), '17902,5 ÷ 5,5 = 3 255');
+  await firstLine.locator('.d').nth(9).click(); await tap('back'); await tap('2'); await tap('=');
+  L = (await lineTexts()).map(clean);
+  eq('строка 2 пересчиталась', L[1], '22 800 − 23% = 17 556');
+  eq('отвязанная строка не изменилась', L[2], '17902,5 ÷ 5,5 = 3 255');
+  await p.click('#undoBtn'); await p.click('#undoBtn');
+  eq('отмена: ссылка вернулась', await p.locator('#lines .ln').nth(2).locator('.ref').count(), 1);
+  // отвязать все строки, которые ссылаются на строку 1
+  await p.locator('#lines .ln').nth(0).click({button: 'right'});
+  await p.click('#dlg .mi[data-r="unD"]');
+  eq('строка 2 отвязана', await p.locator('#lines .ln').nth(1).locator('.ref').count(), 0);
+  await p.click('#undoBtn');
+  eq('отмена отвязки', await p.locator('#lines .ln').nth(1).locator('.ref').count(), 1);
+
   // вставка строки выше
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
   await p.click('#dlg .mi:has-text("Вставить строку выше")');
@@ -206,7 +224,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.2']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.3']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
