@@ -113,7 +113,10 @@ body.picking .ln:not(.draft){cursor:pointer}
   .narrowOnly{display:none!important}
   .k{font-size:21px}.k.eq{font-size:26px}.k.sm{font-size:16px}
 }
-@media not ((min-width:720px) and (min-aspect-ratio:1/1)){#kbBtn,#fxBtn{display:none}}
+@media not ((min-width:720px) and (min-aspect-ratio:1/1)){#kbBtn,#fxBtn,#miniBtn{display:none}}
+body.mini #miniBtn{display:inline-flex!important}
+#miniNote{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg);color:var(--ink);font-size:16px;text-align:center;padding:20px}
+#miniNote button{background:var(--eq);color:var(--eqInk);padding:10px 18px;border-radius:10px;font-weight:600}
 #fxBtn{font-weight:600;font-size:15px;font-style:italic;width:48px}
 #fxBtn.on{background:rgba(128,128,128,.22)}
 /* окна */
@@ -165,6 +168,7 @@ body.picking .ln:not(.draft){cursor:pointer}
   <button class="ib" id="undoBtn" title="Отменить (Ctrl+Z)"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
   <button class="ib" id="redoBtn" title="Повторить (Ctrl+Y)"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
   <button class="ib" id="findBtn" title="Поиск (Ctrl+F)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+  <button class="ib hidden" id="miniBtn" title="Мини-окно поверх всех окон"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="11" width="7" height="7" rx="1"/></svg></button>
   <button class="ib" id="fxBtn" title="Калькулятор: обычный или с функциями">f(x)</button>
   <button class="ib" id="kbBtn" title="Показать или скрыть клавиатуру"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
   <button class="ib" id="menuBtn" title="Меню"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
@@ -190,9 +194,12 @@ body.picking .ln:not(.draft){cursor:pointer}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.0',APP_DATE='22.11.2026';
+const APP_VERSION='2.1',APP_DATE='22.11.2026';
 const C=window.CalcCore;
-const $=s=>document.querySelector(s);
+// DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
+let DOC=document,WIN=window;
+const $=s=>DOC.querySelector(s);
+const docs=()=>DOC===document?[document]:[document,DOC];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // Ключи хранилища с префиксом: на домене mrtekhnik.github.io хранилище общее для всех приложений
 const LS={lines:'calc:lines',draft:'calc:draft',set:'calc:settings'};
@@ -220,8 +227,8 @@ const THEMES={
 const mqDark=matchMedia('(prefers-color-scheme: dark)');
 function curTheme(){if(S.theme==='auto')return mqDark.matches?THEMES.dark:THEMES.light;return THEMES[S.theme]||THEMES.dark;}
 function applyTheme(){
-  const t=curTheme(),st=document.documentElement.style;
-  for(const k in DARK)st.setProperty('--'+k,t[k]);
+  const t=curTheme();
+  for(const d of docs())for(const k in DARK)d.documentElement.style.setProperty('--'+k,t[k]);
   $('meta[name=theme-color]').content=t.bar;
 }
 mqDark.addEventListener('change',()=>{if(S.theme==='auto')applyTheme();});
@@ -329,7 +336,7 @@ function activate(id,cur,sel,hl){
   ed.sel=sel||null;ed.hl=!!hl;
   justCommitted=null;
   render();
-  const el=document.querySelector(`.ln[data-id="${id}"]`);if(el)el.scrollIntoView({block:'nearest'});
+  const el=DOC.querySelector(`.ln[data-id="${id}"]`);if(el)el.scrollIntoView({block:'nearest'});
 }
 function commit(){
   if(!draft.length)return;
@@ -627,7 +634,7 @@ function render(){
   const header=(key,text)=>{
     keep.add(key);
     let n=nodes.get(key);
-    if(!n){n=document.createElement('div');n.className='hdr';nodes.set(key,n);}
+    if(!n){n=DOC.createElement('div');n.className='hdr';nodes.set(key,n);}
     if(n.textContent!==text)n.textContent=text;
     place(n);
   };
@@ -644,7 +651,7 @@ function render(){
     if(ok)lastDay=day;
     keep.add(l.id);
     let n=nodes.get(l.id);
-    if(!n){n=document.createElement('div');n.className='ln';n.dataset.id=l.id;nodes.set(l.id,n);n._h='';}
+    if(!n){n=DOC.createElement('div');n.className='ln';n.dataset.id=l.id;nodes.set(l.id,n);n._h='';}
     const h=lineHTML(l,refd.has(l.id),ix+1);
     if(n._h!==h){n.innerHTML=h;n._h=h;}
     n.classList.toggle('act',ed.id===l.id);
@@ -655,7 +662,7 @@ function render(){
   });
   if(pendingBrk&&!query)header('h:pending','новый расчёт');
   let d=nodes.get('draft');
-  if(!d){d=document.createElement('div');d.className='ln draft';d.dataset.id='draft';nodes.set('draft',d);}
+  if(!d){d=DOC.createElement('div');d.className='ln draft';d.dataset.id='draft';nodes.set('draft',d);}
   d.innerHTML=draftHTML();d.classList.toggle('act',false);
   place(d);
   for(const [id,n] of nodes)if(id!=='draft'&&!keep.has(id)){n.remove();nodes.delete(id);}
@@ -678,8 +685,8 @@ new ResizeObserver(()=>{if(ed.id==='draft')scrollBottom();}).observe($('#tape'))
 
 /* ---------- выделение строк: сумма, среднее, мин, макс ---------- */
 let picked=null; // Set номеров выделенных строк или null
-function startPick(id){leaveEdit();picked=new Set(id?[id]:[]);document.body.classList.add('picking');changed();}
-function stopPick(){picked=null;document.body.classList.remove('picking');$('#selBar').classList.add('hidden');render();}
+function startPick(id){leaveEdit();picked=new Set(id?[id]:[]);DOC.body.classList.add('picking');changed();}
+function stopPick(){picked=null;DOC.body.classList.remove('picking');$('#selBar').classList.add('hidden');render();}
 function togglePick(id){if(picked.has(id))picked.delete(id);else picked.add(id);render();}
 function pickedVals(){return vis().filter(l=>picked.has(l.id)).map(l=>({id:l.id,v:refVal(l.id)})).filter(x=>x.v!==undefined);}
 function renderSelBar(){
@@ -847,10 +854,11 @@ function lineText(l){const r=results.get(l.id);return C.exprText(l.expr,refVal,o
 /* ---------- буфер обмена ---------- */
 function copyText(t,msg){
   const done=()=>toast(msg||'Скопировано');
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,()=>fallbackCopy(t)&&done());
+  const cb=WIN.navigator.clipboard;
+  if(cb&&cb.writeText)cb.writeText(t).then(done,()=>fallbackCopy(t)&&done());
   else if(fallbackCopy(t))done();
 }
-function fallbackCopy(t){try{const a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();const ok=document.execCommand('copy');a.remove();if(!ok)toast('Не удалось скопировать');return ok;}catch(e){toast('Не удалось скопировать');return false;}}
+function fallbackCopy(t){try{const a=DOC.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';DOC.body.appendChild(a);a.select();const ok=DOC.execCommand('copy');a.remove();if(!ok)toast('Не удалось скопировать');return ok;}catch(e){toast('Не удалось скопировать');return false;}}
 function copyResult(id){
   let v;
   if(id==='draft'){
@@ -868,9 +876,10 @@ function pasteAtoms(text){
   setEd(st);
 }
 async function pasteFromClipboard(){
-  try{pasteAtoms(await navigator.clipboard.readText());}catch(e){toast('Браузер не дал прочитать буфер. На ПК используйте Ctrl+V');}
+  try{pasteAtoms(await WIN.navigator.clipboard.readText());}catch(e){toast('Браузер не дал прочитать буфер. На ПК используйте Ctrl+V');}
 }
-document.addEventListener('paste',e=>{if(!$('#dlg').classList.contains('hidden')||(e.target&&e.target.tagName==='INPUT'))return;e.preventDefault();pasteAtoms(e.clipboardData.getData('text'));});
+function onPaste(e){if(!$('#dlg').classList.contains('hidden')||(e.target&&e.target.tagName==='INPUT'))return;e.preventDefault();pasteAtoms(e.clipboardData.getData('text'));}
+document.addEventListener('paste',onPaste);
 
 /* ---------- клавиатура на экране ---------- */
 const IC={
@@ -882,7 +891,7 @@ const IC={
 const LBL={'-':'−','²':'x²','³':'x³','^':'xʸ','!':'x!','lg2':'log₂','abs':'|x|','123':'123','rnd':'окр','rup':'вверх','rdn':'вниз',';':';'};
 const btn=(k,cls,lbl,style)=>`<button class="k ${cls||''}" data-k="${esc(k)}" tabindex="-1"${style?` style="${style}"`:''}>${lbl!==undefined?lbl:(LBL[k]||esc(k))}</button>`;
 function applyWide(){ // режим монитора: обычный калькулятор или с функциями
-  document.body.classList.toggle('basic',!S.wideSci);
+  for(const d of docs())d.body.classList.toggle('basic',!S.wideSci);
   $('#fxBtn').classList.toggle('on',!!S.wideSci);
 }
 function toggleWideSci(){S.wideSci=!S.wideSci;applyWide();scheduleSave();toast(S.wideSci?'Калькулятор с функциями':'Обычный калькулятор');}
@@ -931,7 +940,7 @@ $('#pad').addEventListener('click',e=>{
 
 /* ---------- клавиатура ПК ---------- */
 const KEYMAP={';':';','*':'×','/':'÷','x':'×','X':'×',':':'÷',',':'.','.':'.','+':'+','-':'-','^':'^','(':'(',')':')','%':'%','!':'!','p':'π','P':'π','r':'√','R':'√'};
-document.addEventListener('keydown',e=>{
+function onKey(e){
   const dlgOpen=!$('#dlg').classList.contains('hidden');
   if(dlgOpen){if(e.key==='Escape'){e.preventDefault();closeDlg(null);}return;}
   if(e.target&&e.target.tagName==='INPUT')return; // печать в поле поиска
@@ -942,7 +951,7 @@ document.addEventListener('keydown',e=>{
     if(k==='l'||k==='д'){e.preventDefault();pickByLabel('');return;}
     if(k==='z'||k==='я'){e.preventDefault();e.shiftKey?redo():undo();}
     else if(k==='y'||k==='н'){e.preventDefault();redo();}
-    else if(k==='c'||k==='с'){if(String(getSelection()))return;e.preventDefault();copyResult(ed.id);}
+    else if(k==='c'||k==='с'){if(String(WIN.getSelection()))return;e.preventDefault();copyResult(ed.id);}
     return;
   }
   if(e.altKey)return;
@@ -979,12 +988,13 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(k!==null){e.preventDefault();key(k);}
-});
+}
+document.addEventListener('keydown',onKey);
 
 /* ---------- окна ---------- */
 let dlgResolve=null;
 function openDlg(html){const b=$('#dlg .box');b.innerHTML=html;$('#dlg').classList.remove('hidden');b.scrollTop=0;return new Promise(r=>dlgResolve=r);}
-function closeDlg(v){const f=document.activeElement;if(f&&f.closest&&f.closest('#dlg'))f.blur(); // фокус из окна — обратно калькулятору
+function closeDlg(v){const f=DOC.activeElement;if(f&&f.closest&&f.closest('#dlg'))f.blur(); // фокус из окна — обратно калькулятору
   $('#dlg').classList.add('hidden');const r=dlgResolve;dlgResolve=null;if(r)r(v);}
 $('#dlg').addEventListener('click',e=>{
   if(e.target.id==='dlg'){closeDlg(null);return;}
@@ -1022,6 +1032,42 @@ async function pickByLabel(start){
 let toastT=0;
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.remove('hidden');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.add('hidden'),2300);}
 
+/* ---------- мини-окно поверх всех окон (Chrome на ПК, Document Picture-in-Picture) ---------- */
+let pip=null;
+const miniOk=()=>'documentPictureInPicture' in window;
+async function openMini(){
+  if(pip){pip.close();return;}
+  if(!miniOk()){toast('Мини-окно поддерживает только Chrome на компьютере');return;}
+  let w;
+  try{w=await documentPictureInPicture.requestWindow({width:360,height:600});}
+  catch(e){toast('Не удалось открыть мини-окно');return;}
+  pip=w;
+  const d=w.document;
+  d.documentElement.lang='ru';d.title='Калькулятор';
+  for(const st of document.querySelectorAll('style'))d.head.appendChild(st.cloneNode(true));
+  d.documentElement.style.cssText=document.documentElement.style.cssText;
+  d.body.className=document.body.className+' mini';
+  const moved=[...document.body.children].filter(e=>e.tagName!=='SCRIPT');
+  for(const e of moved)d.body.appendChild(e);
+  const note=document.createElement('div');note.id='miniNote';
+  note.innerHTML='<div>Калькулятор открыт в мини-окне поверх всех окон</div><button>Вернуть сюда</button>';
+  note.querySelector('button').onclick=()=>pip&&pip.close();
+  document.body.insertBefore(note,document.body.firstChild);
+  DOC=d;WIN=w;
+  d.addEventListener('keydown',onKey);d.addEventListener('paste',onPaste);
+  w.addEventListener('pagehide',()=>{ // окно закрыто — всё возвращается в основное окно
+    const first=document.querySelector('body > script');
+    for(const e of [...d.body.children])document.body.insertBefore(e,first);
+    note.remove();
+    document.body.classList.toggle('picking',d.body.classList.contains('picking'));
+    DOC=document;WIN=window;pip=null;
+    render();scrollBottom();
+  });
+  render();scrollBottom();
+}
+$('#miniBtn').onclick=openMini;
+if(miniOk())$('#miniBtn').classList.remove('hidden');
+
 /* ---------- поиск ---------- */
 function openSearch(){
   $('#search').classList.remove('hidden');const q=$('#q');q.focus();q.select();
@@ -1038,12 +1084,13 @@ $('#q').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();c
 /* ---------- меню ---------- */
 $('#menuBtn').onclick=async()=>{
   const k=await choose('Меню',[
-    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'pick',l:'Вставить по подписи'},{k:'tpls',l:'Шаблоны'},{k:'sel',l:'Выделить строки (сумма)'},
+    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'pick',l:'Вставить по подписи'},{k:'tpls',l:'Шаблоны'},...(miniOk()?[{k:'mini',l:pip?'Вернуть из мини-окна':'Мини-окно поверх всех окон'}]:[]),{k:'sel',l:'Выделить строки (сумма)'},
     {k:'th',l:'Темы'},{k:'st',l:'Настройки'},{k:'cp',l:'Копировать всю историю'},{k:'clr',l:'Очистить историю',c:'dng'},
     {k:'help',l:'Как пользоваться'},{k:'up',l:'Проверить обновления'}],`Версия ${APP_VERSION} от ${APP_DATE}`);
   if(k==='brk'){pendingBrk=!pendingBrk;render();scrollBottom();}
   else if(k==='pick')pickByLabel('');
   else if(k==='tpls')templatesDlg();
+  else if(k==='mini')openMini();
   else if(k==='sel')startPick(null);
   else if(k==='th')themesDlg();
   else if(k==='st')settingsDlg();
@@ -1066,7 +1113,7 @@ function themesDlg(){
   $('#dlg .themes').onclick=e=>{
     const b=e.target.closest('[data-t]');if(!b)return;
     S.theme=b.dataset.t;applyTheme();scheduleSave();
-    document.querySelectorAll('#dlg .th').forEach(x=>x.classList.toggle('on',x===b));
+    DOC.querySelectorAll('#dlg .th').forEach(x=>x.classList.toggle('on',x===b));
   };
 }
 function settingsDlg(){
@@ -1109,13 +1156,14 @@ function settingsDlg(){
   };
 }
 function applyDims(){
-  const st=document.documentElement.style;
-  st.setProperty('--zoom',{s:.85,m:1,l:1.18}[S.size]||1);
-  st.setProperty('--padH',S.kb||47);
+  for(const d of docs()){
+    d.documentElement.style.setProperty('--zoom',{s:.85,m:1,l:1.18}[S.size]||1);
+    d.documentElement.style.setProperty('--padH',S.kb||47);
+  }
 }
 function syncKb(){ // число и кнопки высоты клавиатуры в окне настроек — согласованно
   const v=$('#kbV');if(v)v.textContent=S.kb+'%';
-  document.querySelectorAll('#dlg .seg[data-s="kb"] button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S.kb));
+  DOC.querySelectorAll('#dlg .seg[data-s="kb"] button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S.kb));
 }
 function applySettings(){
   applyDims();applyWide();
@@ -1130,6 +1178,7 @@ function helpDlg(){
   <p><b>Долгое нажатие</b> на строку (на ПК — правая кнопка мыши): копировать, вставить строку выше, удалить. При удалении строки в зависимых строках вместо ссылки остаётся число.</p>
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
+  <p><b>Мини-окно</b> (Chrome на ПК): кнопка с маленьким окошком в шапке — калькулятор переходит в небольшое окно, которое висит поверх всех программ (например, SolidWorks). Закройте мини-окно — калькулятор вернётся.</p>
   <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
   <p><b>Сумма строк:</b> долгое нажатие на строку → «Выделить строки», затем нажимайте на нужные строки. Внизу видны сумма, среднее, минимум и максимум; «Σ в ввод» вставляет сумму ссылками — при правке строк она пересчитается.</p>
   <p><b>Подбор числа:</b> долгое нажатие на число в строке → «Подобрать это число…», укажите, какой результат нужен (этой строки или зависимой), — число подберётся само.</p>

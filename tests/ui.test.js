@@ -397,12 +397,43 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.screenshot({path: OUT + '/pc-3-help.png'});
   await d.keyboard.press('Escape');
 
+  // мини-окно поверх всех окон: в тесте окно Chrome «картинка в картинке» заменено обычным всплывающим окном
+  const pcm = await browser.newContext({viewport: {width: 1280, height: 720}});
+  await pcm.addInitScript(() => { window.documentPictureInPicture = {requestWindow: async o => window.open('', 'mini', `width=${o.width},height=${o.height}`)}; });
+  const m = await pcm.newPage();
+  m.on('pageerror', e => errors.push('mini: ' + e.message));
+  await m.goto(URL);
+  for (const ch of '6*7') await m.keyboard.press(ch); await m.keyboard.press('Enter');
+  eq('мини: кнопка есть', await m.$eval('#miniBtn', n => n.classList.contains('hidden')), false);
+  const [mw] = await Promise.all([m.waitForEvent('popup'), m.click('#miniBtn')]);
+  await mw.waitForSelector('#lines .ln');
+  await mw.setViewportSize({width: 360, height: 600}); // настоящее мини-окно — 360×600
+  eq('мини: история в мини-окне', clean(await mw.$eval('#lines .ln', n => n.textContent)), '6 × 7 = 42');
+  eq('мини: в основном окне заглушка', clean(await m.textContent('#miniNote')), 'Калькулятор открыт в мини-окне поверх всех оконВернуть сюда');
+  eq('мини: узкая раскладка (клавиатура снизу)', await mw.$eval('main', n => getComputedStyle(n).flexDirection), 'column');
+  for (const ch of '+8') await mw.keyboard.press(ch);
+  await mw.click('#pad [data-k="="]:visible');
+  eq('мини: расчёт в мини-окне', clean((await mw.$$eval('#lines .ln:not(.draft)', ns => ns.map(n => n.textContent)))[1]), '42 + 8 = 50');
+  await mw.locator('#lines .ln').nth(0).click({button: 'right'});
+  eq('мини: меню строки открывается', await mw.$$eval('#dlg .mi', ns => ns.length) > 3, true);
+  await mw.keyboard.press('Escape');
+  eq('мини: тема перенесена', await mw.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--eq').trim()), '#31a84a');
+  await mw.setViewportSize({width: 360, height: 600});
+  await mw.screenshot({path: OUT + '/pc-4-mini.png'});
+  await mw.close();
+  await m.waitForSelector('#lines .ln');
+  eq('мини: закрыто — всё вернулось', (await m.$$eval('#lines .ln:not(.draft)', ns => ns.map(n => n.textContent))).map(clean), ['6 × 7 = 42', '42 + 8 = 50']);
+  eq('мини: заглушка убрана', await m.$$eval('#miniNote', ns => ns.length), 0);
+  await m.keyboard.press('9');
+  eq('мини: клавиатура снова в основном окне', clean(await m.$eval('.ln.draft', n => n.textContent)), '9');
+  await pcm.close();
+
   // офлайн-кэш: сервис-воркер установлен, кэш с префиксом calc-
   await d.reload();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.0']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.1']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
