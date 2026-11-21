@@ -187,6 +187,14 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('разделитель точка', L[0], '150000 × 0.155 = 23 250');
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="sep"] button[data-v=","]'); await p.click('#dlg .btns .pri');
 
+  // предпросмотр результата не прячется за клавиатурой, даже если прокрутить историю вверх
+  await p.$eval('#tape', n => n.scrollTop = 0);
+  await typeKeys('12*3');
+  const vis = await p.evaluate(() => { const pv = document.querySelector('.ln.draft .pv').getBoundingClientRect(), tp = document.querySelector('#tape').getBoundingClientRect(); return pv.bottom <= tp.bottom + 1 && pv.top >= tp.top; });
+  eq('предпросмотр виден', vis, true);
+  await p.screenshot({path: OUT + '/phone-13-preview.png'});
+  await tap('C');
+
   // история сохраняется после перезапуска
   await p.reload();
   L = (await lineTexts()).map(clean);
@@ -247,7 +255,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.5']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.6']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
