@@ -133,6 +133,8 @@ body.mini #miniBtn{display:inline-flex!important}
 .mi{display:flex;align-items:center;width:100%;text-align:left;padding:13px 10px;font-size:16px;border-radius:10px}
 .mi:active{background:rgba(128,128,128,.18)}
 .mi.dng{color:var(--err)}
+.mi.mo{color:var(--muted)}
+#moreBox{border-top:1px solid rgba(128,128,128,.25);margin-top:2px;padding-top:2px}
 .inp{width:100%;font:inherit;font-size:16px;padding:10px 12px;border-radius:10px;border:1px solid rgba(128,128,128,.45);background:transparent;color:inherit;margin-bottom:8px}
 .pk{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:12px 10px;border-radius:10px;font-size:16px}
 .pk:active{background:rgba(128,128,128,.18)}
@@ -194,7 +196,7 @@ body.mini #miniBtn{display:inline-flex!important}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.1',APP_DATE='22.11.2026';
+const APP_VERSION='2.2',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -234,7 +236,7 @@ function applyTheme(){
 mqDark.addEventListener('change',()=>{if(S.theme==='auto')applyTheme();});
 
 /* ---------- состояние ---------- */
-const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true,wideSci:true,nums:false,days:true};
+const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true,wideSci:true,nums:false,days:true,labels:true,showMod:true};
 let S=Object.assign({},DEF);
 let lines=[];          // {id,pos,expr,upd,at,del,tmp,label,pin,brk}  at — когда создана; brk — «новый расчёт» с этой строки
 let draft=[];          // атомы строки ввода
@@ -308,7 +310,7 @@ function setEd(st){
       const top=undoSt[undoSt.length-1];
       if(!(top&&top.kind==='edit'&&top.session===session&&top.items[0].id===l.id))
         pushUndo([{id:l.id,before:l.tmp?null:clone(l)}],'edit');
-      l.expr=st.atoms;l.upd=now();if(l.tmp&&st.atoms.length)delete l.tmp;
+      l.expr=st.atoms;l.upd=now();l.mod=now();if(l.tmp&&st.atoms.length){delete l.tmp;delete l.mod;}
     }
   }
   const hl=!!(ed.hl&&!st.sel&&C.runAround(st.atoms,st.cur)&&C.isNumCh(st.atoms[st.cur-1]));
@@ -341,6 +343,7 @@ function activate(id,cur,sel,hl){
 function commit(){
   if(!draft.length)return;
   // незакрытые скобки закрываются при «=»
+  if(draft[draft.length-1]===';')draft=draft.slice(0,-1); // шаг не введён — до целого
   let open=0;for(const a of draft){if(a==='(')open++;else if(a===')')open--;}
   if(open>0&&C.endsOperand(draft[draft.length-1]))draft=draft.concat(Array(open).fill(')'));
   const L=vis();
@@ -374,6 +377,13 @@ function key(k){
   }
   if(C.isRef(k)&&ed.id!=='draft'&&C.dependsOn(lines,k.r,ed.id)){
     toast(k.r===ed.id?'Строка не может ссылаться на себя':'Нельзя: эта строка сама зависит от редактируемой — получится цикл');return;}
+  // окр/вверх/вниз после готового числа или выражения — округлить всё, что набрано: окр(… ; шаг)
+  if(C.FN_ARGS.has(k)&&!ed.sel&&ed.cur===ed.atoms.length&&C.endsOperand(ed.atoms[ed.cur-1])){
+    const w=wrapRound(ed.atoms,k,[]);w.pop(); // без «)»: дальше вводится шаг
+    setEd({atoms:w,cur:w.length,sel:null});
+    toast('Введите шаг округления (1, 0,1, 0,5…) и «='+'»; без шага — до целого');
+    return;
+  }
   let st=ed;
   if(ed.id==='draft'&&!draft.length&&justCommitted&&byId(justCommitted)&&(C.BIN.has(k)||C.POST.has(k)))
     st={atoms:[{r:justCommitted}],cur:1,sel:null}; // продолжение от предыдущего результата
@@ -407,7 +417,7 @@ function deleteLine(id){
   const r=results.get(id),v=r&&!r.err?r.v:undefined;
   const items=[{id,before:clone(l)},...deps.map(d=>({id:d.id,before:clone(d)}))];
   if(ed.id===id||deps.some(d=>d.id===ed.id))leaveEdit();
-  for(const d of deps){d.expr=C.freezeRef(d.expr,id,v);d.upd=now();}
+  for(const d of deps){d.expr=C.freezeRef(d.expr,id,v);d.upd=now();d.mod=now();}
   if(draft.some(a=>C.isRef(a)&&a.r===id)){draft=C.freezeRef(draft,id,v);ed={id:'draft',atoms:draft,cur:draft.length,sel:null};}
   l.del=1;l.upd=now();
   pushUndo(items,'del');if(justCommitted===id)justCommitted=null;
@@ -442,7 +452,7 @@ async function goalSeek(id,numAt){
   if(!sol){toast('Не удалось подобрать: такой результат недостижим');return;}
   if(ed.id===id)leaveEdit();
   pushUndo([{id,before:clone(l)}],'seek');
-  l.expr=make(sol.x);l.upd=now();changed();
+  l.expr=make(sol.x);l.upd=now();l.mod=now();changed();
   toast(`Подобрано: ${fmtV(sol.x)}`);
 }
 // Шаблон: выражение строки, где числа — поля (с названием и значением по умолчанию).
@@ -518,6 +528,45 @@ async function useTemplate(t){
   lines.push(l);pushUndo([{id:l.id,before:null}],'add');
   justCommitted=l.id;changed();scrollBottom();
 }
+// Округлить результат строки: всё выражение оборачивается в окр(…; шаг) / вверх(…) / вниз(…)
+function wrapRound(expr,fn,stepAtoms){
+  let e=expr.slice(),open=0;for(const a of e){if(a==='(')open++;else if(a===')')open--;}
+  if(open>0)e=e.concat(Array(open).fill(')'));
+  return [fn,'(',...e,';',...stepAtoms,')'];
+}
+async function roundDlg(id){
+  const src=id==='draft'?draft:(byId(id)||{}).expr;if(!src||!src.length)return;
+  let fn='rnd';
+  const steps=[['1','до целого'],['0.1','0,1'],['0.01','0,01'],['0.001','0,001'],['0.5','0,5'],['5','5'],['10','10'],['100','100']];
+  const preview=()=>{
+    const v=C.evaluate(src,x=>{const q=results.get(x);if(!q||q.err)throw new C.CalcError('x');return q.v;});
+    return v&&!v.err?fmtV(v.v):'?';
+  };
+  const p=openDlg(`<h2>Округлить результат</h2><div class="txt">Сейчас: ${preview()}</div>
+    <div class="live"><div class="seg" id="rFn" style="margin-bottom:10px"><button data-f="rnd" class="on">до ближайшего</button><button data-f="rup">вверх</button><button data-f="rdn">вниз</button></div>
+    <div class="txt" style="margin-bottom:6px">Шаг — до чего округлять:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${steps.map(([v,l])=>`<button class="mi" style="width:auto;border:1px solid rgba(128,128,128,.45);padding:8px 12px" data-st="${v}">${l==='до целого'?l:l.replace('.',S.sep)}</button>`).join('')}</div>
+    <input class="inp" id="rStep" inputmode="decimal" placeholder="или свой шаг, например 0,25" autocomplete="off">
+    <div class="txt" id="rRes"></div></div>
+    <div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Округлить</button></div>`);
+  let step='1';
+  const show=()=>{
+    const e=wrapRound(src,fn,step.split(''));
+    const v=C.evaluate(e,x=>{const q=results.get(x);if(!q||q.err)throw new C.CalcError('x');return q.v;});
+    $('#rRes').textContent=v&&!v.err?`Будет: ${fmtV(v.v)}  —  ${C.exprText([fn,'(','…',';',...step.split(''),')'],()=>0,optsF())}`:(v?v.err:'');
+  };
+  $('#rFn').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;fn=b.dataset.f;$('#rFn').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));show();};
+  $('#dlg .live').addEventListener('click',e=>{const b=e.target.closest('[data-st]');if(!b)return;step=b.dataset.st;$('#rStep').value='';$('#dlg .live').querySelectorAll('[data-st]').forEach(x=>x.style.background=x===b?'var(--actBg)':'');show();});
+  $('#rStep').addEventListener('input',e=>{const a=C.parseText(e.target.value).filter(C.isNumCh);if(a.length)step=a.join('');show();});
+  show();
+  if(await p!=='ok')return;
+  const e=wrapRound(src,fn,step.split(''));
+  if(id==='draft'){activate('draft');setEd({atoms:e,cur:e.length,sel:null});}
+  else{
+    const l=byId(id);if(ed.id===id)leaveEdit();
+    pushUndo([{id,before:clone(l)}],'round');l.expr=e;l.upd=now();l.mod=now();changed();
+  }
+}
 // Изменение свойства строки (подпись, закрепление, разделитель) с возможностью отмены
 function setProp(id,prop,val){
   const l=byId(id);if(!l)return;
@@ -584,7 +633,12 @@ function exprHTML(expr,active,sel,cur,hl){
 function lineHTML(l,refd,no){
   const act=ed.id===l.id,r=results.get(l.id);
   const expr=act?ed.atoms:l.expr;
-  let h=(S.nums?`<span class="no">${no}</span>`:'')+(l.label?`<span class="lbl">${l.pin?'📌 ':''}${esc(l.label)}</span>`:(l.pin?'<span class="lbl">📌</span>':''));
+  // строка над выражением: подпись (если включены), отметка закрепления, когда изменено
+  const meta=[];
+  if(l.pin)meta.push('📌');
+  if(S.labels&&l.label)meta.push(esc(l.label));
+  if(S.showMod&&l.mod&&l.mod-(l.at||0)>60000)meta.push('изм. '+whenText(l.mod));
+  let h=(S.nums?`<span class="no">${no}</span>`:'')+(meta.length?`<span class="lbl">${meta.join(' · ')}</span>`:'');
   h+=exprHTML(expr,act,act?ed.sel:null,act?ed.cur:0,act&&ed.hl);
   if(!expr.length)h+='<span class="mut">пустая строка</span>';
   if(r){
@@ -605,12 +659,19 @@ function draftHTML(){
   let h=exprHTML(draft,act,sel,act?ed.cur:0,act&&ed.hl);
   const r=C.evaluate(draft,id=>{const x=results.get(id);if(!x||x.err)throw new C.CalcError('Ошибка в связанной строке');return x.v;});
   const single=draft.every(a=>C.isNumCh(a))||(draft.length===1&&C.isRef(draft[0]));
-  if(r&&!r.err&&!single)h+=`<span class="pv">= ${fmtV(r.v)}</span>`;
+  if(r&&!r.err&&draft[draft.length-1]===';')h+=`<span class="pv">= ${fmtV(r.v)} · введите шаг округления: 1, 0,1, 0,5…</span>`;
+  else if(r&&!r.err&&!single)h+=`<span class="pv">= ${fmtV(r.v)}</span>`;
   else if(r&&r.err&&r.code!=='incomplete')h+=`<span class="pv e">${esc(r.err)}</span>`;
   return h;
 }
 const nodes=new Map();
 const dayKey=t=>{const d=new Date(t);return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();};
+function whenText(t){ // «сегодня 14:05», «вчера 22:10», «20.11 09:30»
+  const d=new Date(t),hm=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  const k=dayKey(t);
+  if(k===dayKey(now()))return 'сегодня '+hm;if(k===dayKey(now()-864e5))return 'вчера '+hm;
+  return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+' '+hm;
+}
 function dayName(t){
   const k=dayKey(t),today=dayKey(now()),yest=dayKey(now()-864e5);
   if(k===today)return 'Сегодня';if(k===yest)return 'Вчера';
@@ -675,7 +736,7 @@ function render(){
 function renderPins(L){
   const P=L.filter(l=>l.pin),box=$('#pins');
   box.classList.toggle('hidden',!P.length);
-  const h=P.map(l=>{const v=refVal(l.id);return `<button class="pin" data-id="${esc(l.id)}" tabindex="-1"><span>${esc(l.label||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('');
+  const h=P.map(l=>{const v=refVal(l.id);return `<button class="pin" data-id="${esc(l.id)}" tabindex="-1"><span>${esc((S.labels&&l.label)||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('');
   if(box._h!==h){box.innerHTML=h;box._h=h;}
 }
 function changed(){results=C.computeAll(lines);render();scheduleSave();if(ed.id==='draft')scrollBottom();} // строка ввода с предпросмотром всегда видна над клавиатурой
@@ -771,7 +832,7 @@ function unlinkLine(id,at){
   if(!u.n){toast(u.bad?'У ссылки нет значения — сначала исправьте исходную строку':'Ссылок нет');return;}
   if(id==='draft'){draft=u.expr;if(ed.id==='draft')ed={id:'draft',atoms:draft,cur:draft.length,sel:null,hl:false};changed();}
   else if(ed.id===id){setEd({atoms:u.expr,cur:u.expr.length,sel:null});}
-  else{const l=byId(id);pushUndo([{id,before:clone(l)}],'unlink');l.expr=u.expr;l.upd=now();changed();}
+  else{const l=byId(id);pushUndo([{id,before:clone(l)}],'unlink');l.expr=u.expr;l.upd=now();l.mod=now();changed();}
   toast(u.n===1?'Ссылка убрана — осталось число':`Ссылок убрано: ${u.n} — остались числа`);
 }
 function unlinkDependents(id){
@@ -781,7 +842,7 @@ function unlinkDependents(id){
   if(v===undefined){toast('В строке нет результата');return;}
   if(deps.some(d=>d.id===ed.id))leaveEdit();
   pushUndo(deps.map(d=>({id:d.id,before:clone(d)})),'unlink');
-  for(const d of deps){d.expr=C.freezeRef(d.expr,id,v);d.upd=now();}
+  for(const d of deps){d.expr=C.freezeRef(d.expr,id,v);d.upd=now();d.mod=now();}
   if(C.refsOf(draft).includes(id)){draft=C.freezeRef(draft,id,v);if(ed.id==='draft')ed={id:'draft',atoms:draft,cur:draft.length,sel:null,hl:false};}
   changed();
   toast(`Отвязано строк: ${deps.length}`);
@@ -790,20 +851,22 @@ async function lineMenu(id,refAt,numAt){
   const src=id==='draft'?draft:(byId(id)||{expr:[]}).expr;
   let piece=null;
   if(numAt!==null&&numAt!==undefined){const r=C.runAt(src,numAt);if(r)piece=src.slice(r[0],r[1]);}
-  const isRefAt=refAt!==null&&refAt!==undefined;
+  const isRefAt=refAt!==null&&refAt!==undefined,refAtGiven=isRefAt;
   if(isRefAt)piece=[src[refAt]];
   const pv=piece&&!C.isRef(piece[0])?pieceText(piece):(isRefAt&&refVal(piece[0].r)!==undefined?fmtC(refVal(piece[0].r)):null);
   // пункты для нажатого числа или ссылки — первыми
   const one=[];
   if(pv!==null)one.push({k:'pc',l:`Копировать число ${pv}`});
   if(piece&&id!=='draft')one.push({k:'pd',l:isRefAt?'Вставить в строку ввода (ссылкой)':'Вставить число в строку ввода'});
-  if(piece&&!isRefAt&&id!=='draft')one.push({k:'seek',l:'Подобрать это число…'});
-  if(isRefAt)one.push({k:'un1',l:'Убрать эту ссылку (оставить число)'});
+  if(piece&&!isRefAt&&id!=='draft')one.push({k:'seek',l:'Подобрать это число…',more:1});
+  if(isRefAt)one.push({k:'un1',l:'Убрать эту ссылку (оставить число)',more:1});
   const pieceAct=k=>{if(k==='seek'){goalSeek(id,numAt);return true;}if(k==='pc'){copyText(pv,'Скопировано: '+pv);return true;}if(k==='pd'){if(ed.id===id)leaveEdit();toDraft(piece);return true;}return false;};
   if(id==='draft'){
-    const many=C.refsOf(draft).length>1?[{k:'unA',l:'Убрать все ссылки в строке'}]:[];
-    const k=await choose('Строка ввода',[...one,...many,{k:'paste',l:'Вставить из буфера'},{k:'copy',l:'Копировать результат'},{k:'clr',l:'Очистить строку'}]);
+    const many=C.refsOf(draft).length>1?[{k:'unA',l:'Убрать все ссылки в строке',more:1}]:[];
+    const k=await choose('Строка ввода',[...one,{k:'paste',l:'Вставить из буфера'},{k:'copy',l:'Копировать результат'},{k:'clr',l:'Очистить строку'},
+      ...(draft.length?[{k:'rnd',l:'Округлить результат…',more:1}]:[]),...many]);
     if(pieceAct(k))return;
+    if(k==='rnd'){roundDlg('draft');return;}
     if(k==='un1')unlinkLine('draft',refAt);
     else if(k==='unA')unlinkLine('draft',null);
     else if(k==='paste')pasteFromClipboard();
@@ -813,23 +876,32 @@ async function lineMenu(id,refAt,numAt){
   }
   const l=byId(id);if(!l)return;
   const r=results.get(id);
-  const items=[...one];
-  const nRefs=C.refsOf(l.expr).length;
-  if(nRefs>1||(nRefs===1&&!one.length))items.push({k:'unA',l:nRefs>1?`Убрать все ссылки в строке (${nRefs})`:'Убрать ссылку (оставить число)'});
-  const nDeps=C.directDependents(lines,id).filter(x=>x.id!==id).length;
-  if(nDeps)items.push({k:'unD',l:`Отвязать строки, которые ссылаются сюда (${nDeps})`});
+  // сверху — частые действия, остальное — под «Ещё»
+  const items=one.filter(x=>!x.more);
   if(r&&!r.err)items.push({k:'ins',l:'Вставить результат в строку ввода'},{k:'cr',l:'Копировать результат'});
-  items.push({k:'sel',l:'Выделить строки (сумма, среднее)'},{k:'tpl',l:'Сохранить как шаблон…'});
-  items.push({k:'lbl',l:l.label?'Изменить подпись':'Подпись…'},{k:'pin',l:l.pin?'Открепить':'Закрепить сверху'},
-    {k:'brk',l:l.brk?'Убрать разделитель «новый расчёт»':'Новый расчёт с этой строки'},
-    {k:'cl',l:'Копировать строку'},{k:'edit',l:'Править строку'},{k:'above',l:'Вставить строку выше'},{k:'del',l:'Удалить строку',c:'dng'});
-  const k=await choose((l.label?l.label+': ':'')+C.exprText(l.expr,refVal,optsF())+(r&&!r.err?' = '+fmtV(r.v):''),items);
+  items.push({k:'edit',l:'Править строку'},{k:'del',l:'Удалить строку',c:'dng'});
+  items.push(...one.filter(x=>x.more));
+  const M=(k,l)=>items.push({k,l,more:1});
+  if(r&&!r.err)M('rnd','Округлить результат…');
+  const nRefs=C.refsOf(l.expr).length;
+  if(nRefs>1||(nRefs===1&&!refAtGiven))M('unA',nRefs>1?`Убрать все ссылки в строке (${nRefs})`:'Убрать ссылку (оставить число)');
+  const nDeps=C.directDependents(lines,id).filter(x=>x.id!==id).length;
+  if(nDeps)M('unD',`Отвязать строки, которые ссылаются сюда (${nDeps})`);
+  if(S.labels)M('lbl',l.label?'Изменить подпись':'Подпись…');
+  M('pin',l.pin?'Открепить':'Закрепить сверху');
+  M('sel','Выделить строки (сумма, среднее)');
+  M('tpl','Сохранить как шаблон…');
+  M('brk',l.brk?'Убрать разделитель «новый расчёт»':'Новый расчёт с этой строки');
+  M('above','Вставить строку выше');
+  M('cl','Копировать строку');
+  const k=await choose((S.labels&&l.label?l.label+': ':'')+C.exprText(l.expr,refVal,optsF())+(r&&!r.err?' = '+fmtV(r.v):''),items);
   if(pieceAct(k))return;
   if(k==='un1')unlinkLine(id,refAt);
   else if(k==='unA')unlinkLine(id,null);
   else if(k==='unD')unlinkDependents(id);
   else if(k==='ins'){activate('draft');insertRef(id);}
   else if(k==='cr')copyResult(id);
+  else if(k==='rnd')roundDlg(id);
   else if(k==='cl')copyText(lineText(l));
   else if(k==='lbl'){
     const t=await promptBox(l.label?'Изменить подпись':'Подпись строки',l.label||'','например: лист 2 мм, заказ 358','Пусто — подпись будет убрана. По подписи значение строки можно вставить в расчёт: кнопка «подп.» на странице функций, на ПК — начните печатать буквы.');
@@ -962,7 +1034,7 @@ function onKey(e){
   else if(e.code==='NumpadDecimal')k='.';
   else if(KEYMAP[e.key])k=KEYMAP[e.key];
   else if(e.key==='@'){e.preventDefault();pickByLabel('');return;}
-  else if(e.key.length===1&&/\p{L}/u.test(e.key)){e.preventDefault();pickByLabel(e.key);return;} // буквы — поиск по подписи
+  else if(S.labels&&e.key.length===1&&/\p{L}/u.test(e.key)){e.preventDefault();pickByLabel(e.key);return;} // буквы — поиск по подписи
   else if(e.key==='Enter'||e.key==='='){
     if(e.shiftKey&&ed.id!=='draft'){const id=ed.id;e.preventDefault();activate('draft');insertRef(id);return;}
     k='=';
@@ -1000,8 +1072,16 @@ $('#dlg').addEventListener('click',e=>{
   if(e.target.id==='dlg'){closeDlg(null);return;}
   const b=e.target.closest('[data-r]');if(b&&b.closest('#dlg .box')&&!b.closest('.live'))closeDlg(b.dataset.r);
 });
+// Меню: пункты с more:true прячутся под «Ещё…»
 function choose(title,items,foot){
-  return openDlg(`<h2>${esc(title)}</h2>`+items.map(it=>`<button class="mi ${it.c||''}" data-r="${it.k}">${esc(it.l)}</button>`).join('')+(foot?`<div class="foot">${foot}</div>`:''));
+  const mi=it=>`<button class="mi ${it.c||''}" data-r="${it.k}">${esc(it.l)}</button>`;
+  const top=items.filter(it=>!it.more),more=items.filter(it=>it.more);
+  const p=openDlg(`<h2>${esc(title)}</h2>`+top.map(mi).join('')
+    +(more.length?`<button class="mi mo" id="moreBtn">Ещё ▾</button><div id="moreBox" class="hidden">${more.map(mi).join('')}</div>`:'')
+    +(foot?`<div class="foot">${foot}</div>`:''));
+  const mb=$('#moreBtn');
+  if(mb)mb.onclick=()=>{const b=$('#moreBox'),open=b.classList.toggle('hidden');mb.textContent=open?'Ещё ▾':'Ещё ▴';};
+  return p;
 }
 function confirmBox(title,text,ok,danger){
   return openDlg(`<h2>${esc(title)}</h2><div class="txt">${esc(text)}</div><div class="btns"><button data-r="no">Отмена</button><button class="${danger?'dng':'pri'}" data-r="ok">${esc(ok||'OK')}</button></div>`);
@@ -1015,8 +1095,8 @@ function promptBox(title,val,ph,note){
 }
 // Вставить значение строки по подписи (или закреплённой строки)
 async function pickByLabel(start){
-  const L=vis().filter(l=>l.label||l.pin).reverse();
-  if(!L.length){toast('Нет строк с подписями. Долгое нажатие на строку → «Подпись…»');return;}
+  const L=vis().filter(l=>(S.labels&&l.label)||l.pin).reverse();
+  if(!L.length){toast(S.labels?'Нет строк с подписями. Долгое нажатие на строку → «Ещё» → «Подпись…»':'Подписи выключены в настройках');return;}
   const list=q=>{
     const n=norm(q||'');
     const F=L.filter(l=>!n||norm(l.label||'').includes(n)||norm(C.exprText(l.expr,refVal,optsF())).includes(n));
@@ -1040,7 +1120,12 @@ async function openMini(){
   if(!miniOk()){toast('Мини-окно поддерживает только Chrome на компьютере');return;}
   let w;
   try{w=await documentPictureInPicture.requestWindow({width:360,height:600});}
-  catch(e){toast('Не удалось открыть мини-окно');return;}
+  catch(e){
+    alertBox('Мини-окно не открылось',`<p>Браузер ответил: <b>${esc((e&&e.name)||'')}</b> ${esc((e&&e.message)||'')}</p>
+      <p>Возможные причины: функция отключена настройками или политикой компьютера (часто на рабочих ПК), старая версия Chrome (нужна 116 или новее; версия видна на странице chrome://version), приложение открыто не в Chrome.</p>
+      <p>Пришлите этот текст — разберёмся.</p>`);
+    return;
+  }
   pip=w;
   const d=w.document;
   d.documentElement.lang='ru';d.title='Калькулятор';
@@ -1127,6 +1212,8 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Клавиатура на широком экране<small>Режим монитора; переключается и кнопкой f(x) в шапке</small></div>${seg('wideSci',[['false','обычная'],['true','с функциями']],S.wideSci)}</div>
     <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
+    <div class="opt"><div class="lb">Подписи строк<small>Если выключить, подписи не показываются и не предлагаются; сохранённые подписи не удаляются</small></div>${seg('labels',[['true','да'],['false','нет']],S.labels)}</div>
+    <div class="opt"><div class="lb">Показывать «изменено»<small>Над исправленной строкой — когда её меняли</small></div>${seg('showMod',[['true','да'],['false','нет']],S.showMod)}</div>
     <div class="opt"><div class="lb">Номера строк</div>${seg('nums',[['true','да'],['false','нет']],S.nums)}</div>
     <div class="opt"><div class="lb">Разделители по дням<small>«Сегодня», «Вчера», дата</small></div>${seg('days',[['true','да'],['false','нет']],S.days)}</div>
     <div class="opt"><div class="lb">Подсвечивать вводимое<small>В строке ввода выделяется число или знак, который вы сейчас набираете</small></div>${seg('hlIn',[['true','да'],['false','нет']],S.hlIn)}</div>
@@ -1182,9 +1269,13 @@ function helpDlg(){
   <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
   <p><b>Сумма строк:</b> долгое нажатие на строку → «Выделить строки», затем нажимайте на нужные строки. Внизу видны сумма, среднее, минимум и максимум; «Σ в ввод» вставляет сумму ссылками — при правке строк она пересчитается.</p>
   <p><b>Подбор числа:</b> долгое нажатие на число в строке → «Подобрать это число…», укажите, какой результат нужен (этой строки или зависимой), — число подберётся само.</p>
-  <p><b>Округление</b> (страница функций): окр(x; шаг) — до ближайшего, вверх(x; шаг), вниз(x; шаг). Шаг через «;», без шага — до целого. Пример: вверх(12,1; 0,5) = 12,5; окр(2,675; 0,01) = 2,68.</p>
+  <p><b>Округление.</b> Шаг — это «до чего округлять»: шаг 1 — до целого, 0,1 — до десятых, 0,01 — до сотых, 0,5 — до половинок, 10 — до десятков.</p>
+  <p>Самый простой способ: долгое нажатие на строку → «Ещё» → «Округлить результат…», выбрать «до ближайшего», «вверх» или «вниз» и шаг.</p>
+  <p>С клавиатуры: наберите выражение, нажмите «окр» (или «вверх», «вниз») на странице функций — всё набранное возьмётся в скобки, затем введите шаг и «=». Пример: 12,34 × 3 → «окр» → 0,5 → «=» даёт окр(12,34 × 3; 0,5) = 37. Без шага — до целого.</p>
+  <p>Пример: вверх(1 234; 100) = 1 300; вниз(12,9; 0,5) = 12,5; окр(2,675; 0,01) = 2,68.</p>
   <p><b>Шаблоны:</b> долгое нажатие на строку с формулой → «Сохранить как шаблон…», дайте числам названия. Меню → «Шаблоны» — ввести значения и получить строку расчёта.</p>
-  <p><b>Подписи:</b> долгое нажатие на строку → «Подпись…» (например «лист 2 мм»). Значение строки с подписью можно вставить по подписи: кнопка «подп.» на странице функций, пункт меню или на ПК — просто начните печатать буквы (или Ctrl+L).</p>
+  <p><b>Меню строки:</b> сверху — частые действия, остальные под «Ещё».</p>
+  <p><b>Подписи:</b> долгое нажатие на строку → «Ещё» → «Подпись…» (например «лист 2 мм»). Значение строки с подписью можно вставить по подписи: кнопка «подп.» на странице функций, пункт меню или на ПК — просто начните печатать буквы (или Ctrl+L).</p>
   <p><b>Закреплённые строки</b> (долгое нажатие → «Закрепить сверху») видны над историей; нажатие вставляет значение в расчёт.</p>
   <p><b>Новый расчёт:</b> меню → «Начать новый расчёт» — следующая строка отделится чертой. История делится и по дням.</p>
   <p><b>Поиск:</b> кнопка-лупа или Ctrl+F — по числу, подписи или результату.</p>

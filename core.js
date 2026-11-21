@@ -114,7 +114,7 @@
         p += 2;
         const x = expr();
         let y = null;
-        if (peek() && peek().k === ';') { p++; y = expr(); }
+        if (peek() && peek().k === ';') { p++; if (peek() && peek().k !== ')') y = expr(); } // шаг не введён — до целого
         if (peek() && peek().k === ')') p++;
         else if (peek()) throw new CalcError(peek().k === ';' ? 'Лишняя «;»' : 'Нет действия между числами');
         return {t: 'fn', v: k.v, x, y};

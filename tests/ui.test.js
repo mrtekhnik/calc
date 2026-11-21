@@ -3,6 +3,8 @@ const {chromium} = require('/opt/npm-tools/node_modules/playwright');
 const URL = process.argv[2], OUT = process.argv[3];
 let ok = 0, fail = 0;
 const eq = (n, g, e) => { if (JSON.stringify(g) === JSON.stringify(e)) ok++; else { fail++; console.log('✗', n, '\n   получено:', JSON.stringify(g), '\n   ожидалось:', JSON.stringify(e)); } };
+// пункт меню, который может быть спрятан под «Ещё»
+const mi = async (page, k) => { const sel = `#dlg .mi[data-r="${k}"]`; if (!(await page.isVisible(sel)) && await page.$('#moreBtn')) await page.click('#moreBtn'); await page.click(sel); };
 const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 (async () => {
@@ -107,7 +109,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // убрать ссылку: долгое нажатие на зелёное число в строке 3
   await p.locator('#lines .ln').nth(2).locator('.ref').click({button: 'right'});
-  await p.click('#dlg .mi[data-r="un1"]');
+  await mi(p, 'un1');
   eq('ссылка убрана', await p.locator('#lines .ln').nth(2).locator('.ref').count(), 0);
   eq('значение то же', clean((await lineTexts())[2]), '17902,5 ÷ 5,5 = 3 255');
   await firstLine.locator('.d').nth(9).click(); await tap('back'); await tap('2'); await tap('=');
@@ -118,7 +120,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('отмена: ссылка вернулась', await p.locator('#lines .ln').nth(2).locator('.ref').count(), 1);
   // отвязать все строки, которые ссылаются на строку 1
   await p.locator('#lines .ln').nth(0).click({button: 'right'});
-  await p.click('#dlg .mi[data-r="unD"]');
+  await mi(p, 'unD');
   eq('строка 2 отвязана', await p.locator('#lines .ln').nth(1).locator('.ref').count(), 0);
   await p.click('#undoBtn');
   eq('отмена отвязки', await p.locator('#lines .ln').nth(1).locator('.ref').count(), 1);
@@ -155,7 +157,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // вставка строки выше
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
-  await p.click('#dlg .mi:has-text("Вставить строку выше")');
+  await mi(p, 'above');
   await typeKeys('2+2'); await tap('=');
   L = (await lineTexts()).map(clean);
   eq('строка выше', L[1], '2 + 2 = 4');
@@ -231,7 +233,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('округление вверх', L[L.length - 1], 'вверх(12,1; 0,5) = 12,5');
   // выделение строк и сумма
   await p.locator('#lines .ln').nth(2).click({button: 'right'});
-  await p.click('#dlg .mi[data-r="sel"]');
+  await mi(p, 'sel');
   await p.locator('#lines .ln').nth(3).click(); await p.locator('#lines .ln').nth(4).click();
   eq('сумма выделенных', clean(await p.textContent('#selBar .st')), 'Выбрано: 3 · Σ 24 480,5 · ср. 8 160,1667 · мин 3 255 · макс 17 902,5');
   await p.screenshot({path: OUT + '/phone-17-sum.png'});
@@ -241,14 +243,14 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await tap('C');
   // подбор числа: чтобы строка 1 дала 31 000
   await p.locator('#lines .ln').nth(0).locator('.d').nth(8).click({button: 'right'});
-  await p.click('#dlg .mi[data-r="seek"]');
+  await mi(p, 'seek');
   await p.fill('#gsV', '31000'); await p.click('#dlg .btns .pri');
   L = (await lineTexts()).map(clean);
   eq('подбор: результат', L[0].split('=')[1].trim(), '31 000');
   eq('подбор: зависимая пересчиталась', L[2].split('=')[1].trim(), '23 870');
   // подбор по зависимой строке: строка 3 (÷ 5,5) должна дать 4 000
   await p.locator('#lines .ln').nth(0).locator('.d').nth(8).click({button: 'right'});
-  await p.click('#dlg .mi[data-r="seek"]');
+  await mi(p, 'seek');
   await p.locator('#dlg input[name=gsT]').nth(2).check();
   await p.fill('#gsV', '4000'); await p.click('#dlg .btns .pri');
   L = (await lineTexts()).map(clean);
@@ -257,10 +259,36 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   L = (await lineTexts()).map(clean);
   eq('подбор отменён', L[0].replace(/\s/g, ''), '150000×0,155=23250');
 
+  // меню строки: сверху важное, остальное под «Ещё»
+  await p.locator('#lines .ln').nth(1).click({button: 'right'});
+  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Править строку', 'Удалить строку']);
+  eq('меню: «Ещё» скрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), false);
+  await p.click('#moreBtn');
+  eq('меню: «Ещё» раскрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), true);
+  await p.screenshot({path: OUT + '/phone-18-menu.png'});
+  await p.keyboard.press('Escape');
+  // округлить результат строки через меню: 2 + 2 → нет; строка 3 (17 902,5 ÷ 5,5 = 3 255) вверх до 100
+  await p.locator('#lines .ln').nth(3).click({button: 'right'});
+  await mi(p, 'rnd');
+  await p.click('#rFn [data-f="rup"]'); await p.click('#dlg [data-st="100"]');
+  eq('округление: предпросмотр', (await p.textContent('#rRes')).startsWith('Будет: 3' + String.fromCharCode(0x202F) + '300'), true);
+  await p.screenshot({path: OUT + '/phone-19-round.png'});
+  await p.click('#dlg .btns .pri');
+  L = (await lineTexts()).map(clean);
+  eq('округление результата строки', L[3].split('=').pop().trim(), '3 300');
+  await p.click('#undoBtn');
+  // клавиша «окр» после выражения оборачивает его
+  await typeKeys('12,34*3'); await swipe(); await tap('rnd'); await tap('123');
+  eq('окр по выражению: подсказка', clean(await p.$eval('.ln.draft .pv', n => n.textContent)).includes('введите шаг'), true);
+  await typeKeys('0,5'); await tap('=');
+  L = (await lineTexts()).map(clean);
+  eq('окр по выражению', L[L.length - 1], 'окр(12,34 × 3; 0,5) = 37');
+  await p.click('#undoBtn');
+
   // подписи, вставка по подписи, закреплённые, поиск, номера, разделители по дням
   eq('разделитель «Сегодня»', await p.$$eval('#lines .hdr', ns => ns.map(n => n.textContent)), ['Сегодня']);
   await p.locator('#lines .ln').nth(0).click({button: 'right'});
-  await p.click('#dlg .mi[data-r="lbl"]');
+  await mi(p, 'lbl');
   await p.fill('#pIn', 'лист 2 мм'); await p.click('#dlg .btns .pri');
   eq('подпись показана', await p.locator('#lines .ln').nth(0).locator('.lbl').textContent(), 'лист 2 мм');
   await swipe(); await tap('pick');
@@ -270,7 +298,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('вставлено по подписи', (await p.$$eval('.ln.draft .ref', ns => ns.map(n => n.textContent))).map(clean), ['23 250']);
   await tap('C'); await swipe();
   await p.locator('#lines .ln').nth(0).click({button: 'right'});
-  await p.click('#dlg .mi[data-r="pin"]');
+  await mi(p, 'pin');
   eq('закреплено', clean(await p.textContent('#pins')), 'лист 2 мм23 250');
   await p.screenshot({path: OUT + '/phone-14-pins.png'});
   await p.click('#pins .pin');
@@ -290,6 +318,14 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('номера строк', await p.$$eval('#lines .no', ns => ns.slice(0, 3).map(n => n.textContent)), ['1', '2', '3']);
   await p.screenshot({path: OUT + '/phone-16-nums.png'});
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="nums"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+  // подписи можно выключить
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="labels"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+  eq('подписи выключены', await p.$$eval('#lines .lbl', ns => ns.length), 0);
+  await p.locator('#lines .ln').nth(0).click({button: 'right'});
+  eq('пункта «Подпись» нет', await p.$$eval('#dlg .mi[data-r="lbl"]', ns => ns.length), 0);
+  await p.keyboard.press('Escape');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="labels"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
+  eq('подписи снова видны', await p.$$eval('#lines .lbl', ns => ns.map(n => n.textContent)), ['лист 2 мм']);
 
   // история сохраняется после перезапуска
   await p.reload();
@@ -330,7 +366,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.click('#undoBtn');
   // подпись и вставка по подписи буквами с клавиатуры
   await d.locator('#lines .ln').nth(3).click({button: 'right'});
-  await d.click('#dlg .mi[data-r="lbl"]'); await d.fill('#pIn', 'степень'); await d.keyboard.press('Enter');
+  await mi(d, 'lbl'); await d.fill('#pIn', 'степень'); await d.keyboard.press('Enter');
   await d.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'с', bubbles: true}))); // русская «с»
   eq('ПК: буква открыла выбор', await d.$eval('#pkIn', n => n.value), 'с');
   await d.keyboard.insertText('т'); await d.keyboard.press('Enter');
@@ -344,6 +380,17 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК: найдено', await d.$$eval('#lines .ln.found', ns => ns.length), 1);
   await d.keyboard.press('Escape');
   eq('ПК: Esc закрыл поиск', await d.$eval('#search', n => n.classList.contains('hidden')), true);
+
+  // строка, созданная позавчера, при правке остаётся в своём дне и получает отметку «изм.»
+  // делаем первую строку «позавчерашней» прямо в приложении (при перезагрузке оно само сохраняет историю)
+  await d.evaluate(() => { const l = vis()[0]; l.at = l.upd = Date.now() - 2 * 864e5 - 3600e3; saveNow(); });
+  await d.reload();
+  const hdrs = await d.$$eval('#lines .hdr', ns => ns.map(n => n.textContent));
+  eq('ПК: старый день отдельно', hdrs.length === 2 && hdrs[1] === 'Сегодня' && /^\d\d\.\d\d\.\d{4}$/.test(hdrs[0]), true);
+  await d.locator('#lines .ln').nth(0).locator('.d').first().click(); await d.keyboard.press('2'); await d.keyboard.press('Escape');
+  eq('ПК: после правки день тот же', (await d.$$eval('#lines .hdr', ns => ns.map(n => n.textContent)))[0], hdrs[0]);
+  eq('ПК: отметка «изм.»', /^изм\. сегодня \d\d:\d\d$/.test(await d.locator('#lines .ln').nth(0).locator('.lbl').textContent()), true);
+  await d.click('#undoBtn');
 
   // стрелки: вверх три раза — строка 72/4, правка, Esc
   await d.keyboard.press('ArrowUp'); await d.keyboard.press('ArrowUp'); await d.keyboard.press('ArrowUp');
@@ -364,7 +411,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.keyboard.press('Escape');
   // шаблон: из строки «120 × 1,2 + 45 × 1,5»
   await d.locator('#lines .ln').nth(0).click({button: 'right'});
-  await d.click('#dlg .mi[data-r="tpl"]');
+  await mi(d, 'tpl');
   await d.fill('#tName', 'Две позиции');
   await d.fill('#dlg [data-f="0"]', 'кол-во 1'); await d.fill('#dlg [data-f="2"]', 'кол-во 2');
   await d.uncheck('#dlg [data-a="1"]'); await d.uncheck('#dlg [data-a="3"]');
@@ -433,7 +480,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.1']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.2']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
