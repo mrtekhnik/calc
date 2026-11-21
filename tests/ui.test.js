@@ -225,6 +225,40 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.screenshot({path: OUT + '/phone-13-preview.png'});
   await tap('C');
 
+  // подписи, вставка по подписи, закреплённые, поиск, номера, разделители по дням
+  eq('разделитель «Сегодня»', await p.$$eval('#lines .hdr', ns => ns.map(n => n.textContent)), ['Сегодня']);
+  await p.locator('#lines .ln').nth(0).click({button: 'right'});
+  await p.click('#dlg .mi[data-r="lbl"]');
+  await p.fill('#pIn', 'лист 2 мм'); await p.click('#dlg .btns .pri');
+  eq('подпись показана', await p.locator('#lines .ln').nth(0).locator('.lbl').textContent(), 'лист 2 мм');
+  await swipe(); await tap('pick');
+  await p.fill('#pkIn', 'лист');
+  eq('выбор по подписи: найдено', await p.$$eval('#dlg .pk', ns => ns.length), 1);
+  await p.click('#dlg .pk');
+  eq('вставлено по подписи', (await p.$$eval('.ln.draft .ref', ns => ns.map(n => n.textContent))).map(clean), ['23 250']);
+  await tap('C'); await swipe();
+  await p.locator('#lines .ln').nth(0).click({button: 'right'});
+  await p.click('#dlg .mi[data-r="pin"]');
+  eq('закреплено', clean(await p.textContent('#pins')), 'лист 2 мм23 250');
+  await p.screenshot({path: OUT + '/phone-14-pins.png'});
+  await p.click('#pins .pin');
+  eq('нажатие на закреплённое вставляет ссылку', await p.$$eval('.ln.draft .ref', ns => ns.length), 1);
+  await tap('C');
+  await p.click('#undoBtn');
+  eq('отмена закрепления', await p.$eval('#pins', n => n.classList.contains('hidden')), true);
+  await p.click('#findBtn'); await p.fill('#q', '17902,5');
+  eq('поиск по числу', await p.$$eval('#lines .ln.found', ns => ns.length), 3);
+  eq('поиск: счётчик', await p.textContent('#qCnt'), 'найдено: 3');
+  await p.fill('#q', 'лист');
+  eq('поиск по подписи', await p.$$eval('#lines .ln.found', ns => ns.length), 1);
+  await p.screenshot({path: OUT + '/phone-15-search.png'});
+  await p.click('#qClose');
+  eq('поиск закрыт — все строки', await p.$$eval('#lines .ln.hidden', ns => ns.length), 0);
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="nums"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
+  eq('номера строк', await p.$$eval('#lines .no', ns => ns.slice(0, 3).map(n => n.textContent)), ['1', '2', '3']);
+  await p.screenshot({path: OUT + '/phone-16-nums.png'});
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="nums"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+
   // история сохраняется после перезапуска
   await p.reload();
   L = (await lineTexts()).map(clean);
@@ -255,6 +289,30 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК строка 1', L[0], '120 × 1,2 + 45 × 1,5 = 211,5');
   eq('ПК продолжение с цифрового блока', L[2], '18 + 2 = 20');
   eq('ПК степень', L[3], '2 ^ 10 = 1 024');
+  // новый расчёт: следующая строка отделяется чертой
+  await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="brk"]');
+  eq('ПК: ожидающий разделитель', await d.$$eval('#lines .hdr', ns => ns.map(n => n.textContent)), ['Сегодня', 'новый расчёт']);
+  await kb('7*6\n');
+  eq('ПК: разделитель у новой строки', await d.$$eval('#lines .hdr', ns => ns.map(n => n.textContent)), ['Сегодня', 'новый расчёт']);
+  eq('ПК: разделитель стоит перед 7×6', clean(await d.$$eval('#lines .hdr', ns => ns[1].nextElementSibling.textContent)), '7 × 6 = 42');
+  await d.click('#undoBtn');
+  // подпись и вставка по подписи буквами с клавиатуры
+  await d.locator('#lines .ln').nth(3).click({button: 'right'});
+  await d.click('#dlg .mi[data-r="lbl"]'); await d.fill('#pIn', 'степень'); await d.keyboard.press('Enter');
+  await d.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'с', bubbles: true}))); // русская «с»
+  eq('ПК: буква открыла выбор', await d.$eval('#pkIn', n => n.value), 'с');
+  await d.keyboard.insertText('т'); await d.keyboard.press('Enter');
+  await kb('+1\n');
+  eq('ПК: вставка по подписи', (await dl())[4], '1 024 + 1 = 1 025');
+  await d.click('#undoBtn');
+  // Ctrl+F
+  await d.keyboard.press('Control+f');
+  eq('ПК: Ctrl+F открыл поиск', await d.evaluate(() => document.activeElement.id), 'q');
+  await d.keyboard.type('211'); 
+  eq('ПК: найдено', await d.$$eval('#lines .ln.found', ns => ns.length), 1);
+  await d.keyboard.press('Escape');
+  eq('ПК: Esc закрыл поиск', await d.$eval('#search', n => n.classList.contains('hidden')), true);
+
   // стрелки: вверх три раза — строка 72/4, правка, Esc
   await d.keyboard.press('ArrowUp'); await d.keyboard.press('ArrowUp'); await d.keyboard.press('ArrowUp');
   await d.keyboard.press('Backspace'); await d.keyboard.press('8'); await d.keyboard.press('Escape');
@@ -296,7 +354,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.8']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-1.9']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();

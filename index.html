@@ -22,8 +22,24 @@ header.top h1{flex:1;margin:0;font-size:17px;font-weight:600;white-space:nowrap;
 .ib:disabled{opacity:.3;cursor:default}
 .ib:active:not(:disabled){background:rgba(128,128,128,.2)}
 main{flex:1;display:flex;flex-direction:column;min-height:0}
+#left{flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--bg)}
+/* поиск */
+#search{flex:none;display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--bar);color:var(--barInk)}
+#search input{flex:1;min-width:0;font:inherit;font-size:16px;padding:8px 10px;border-radius:10px;border:1px solid rgba(128,128,128,.45);background:transparent;color:inherit}
+#search .cnt{font-size:13px;opacity:.7;white-space:nowrap}
+/* закреплённые */
+#pins{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;max-height:30%;overflow-y:auto;background:var(--bg);background-image:var(--img);border-bottom:1px solid rgba(128,128,128,.25)}
+.pin{display:inline-flex;align-items:baseline;gap:6px;padding:5px 10px;border-radius:14px;background:var(--actBg);color:var(--ink);font-size:14px;max-width:100%;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.pin b{color:var(--acc);font-weight:500;white-space:nowrap}
+.pin span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
+/* разделители, подписи, номера */
+.hdr{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin:10px 6px 2px}
+.hdr::before,.hdr::after{content:'';flex:1;border-top:1px solid rgba(128,128,128,.3)}
+.lbl{display:block;font-size:.5em;line-height:1.3;color:var(--muted);margin-top:4px}
+.no{float:left;font-size:.5em;color:var(--muted);margin-top:.75em;min-width:1.6em;text-align:left}
+.ln.found{box-shadow:inset 3px 0 0 var(--acc)}
 /* лента расчётов */
-#tape{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding:6px 10px 8px;background:var(--bg);background-image:var(--img);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:default}
+#tape{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding:6px 10px 8px;background:var(--bg);overflow-anchor:none;background-image:var(--img);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:default}
 #lines{margin-top:auto}
 .ln{text-align:right;font-size:calc(var(--fs)*var(--zoom));line-height:1.4;padding:2px 6px;border-radius:10px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .ln.act{background:var(--actBg)}
@@ -99,6 +115,11 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .mi{display:flex;align-items:center;width:100%;text-align:left;padding:13px 10px;font-size:16px;border-radius:10px}
 .mi:active{background:rgba(128,128,128,.18)}
 .mi.dng{color:var(--err)}
+.inp{width:100%;font:inherit;font-size:16px;padding:10px 12px;border-radius:10px;border:1px solid rgba(128,128,128,.45);background:transparent;color:inherit;margin-bottom:8px}
+.pk{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:12px 10px;border-radius:10px;font-size:16px}
+.pk:active{background:rgba(128,128,128,.18)}
+.pk b{color:var(--acc);font-weight:500;white-space:nowrap}
+.pk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .foot{font-size:13px;opacity:.65;padding:8px 10px 0}
 .opt{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid rgba(128,128,128,.2)}
 .opt:last-child{border-bottom:0}
@@ -128,13 +149,18 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
   <h1>Калькулятор</h1>
   <button class="ib" id="undoBtn" title="Отменить (Ctrl+Z)"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
   <button class="ib" id="redoBtn" title="Повторить (Ctrl+Y)"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+  <button class="ib" id="findBtn" title="Поиск (Ctrl+F)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
   <button class="ib" id="fxBtn" title="Калькулятор: обычный или с функциями">f(x)</button>
   <button class="ib" id="kbBtn" title="Показать или скрыть клавиатуру"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
   <button class="ib" id="menuBtn" title="Меню"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
 </header>
 <div id="updBar" class="hidden"><span>Доступна новая версия</span><button id="updBtn">Обновить</button></div>
 <main>
-  <section id="tape"><div id="lines"></div></section>
+  <div id="left">
+    <div id="search" class="hidden"><input id="q" type="search" placeholder="Число или подпись" autocomplete="off"><span class="cnt" id="qCnt"></span><button class="ib" id="qClose" title="Закрыть поиск (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div id="pins" class="hidden"></div>
+    <section id="tape"><div id="lines"></div></section>
+  </div>
   <section id="pad">
     <div class="row" id="topRow"></div>
     <div class="grids" id="grids">
@@ -148,7 +174,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='1.8',APP_DATE='21.11.2026';
+const APP_VERSION='1.9',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -185,15 +211,17 @@ function applyTheme(){
 mqDark.addEventListener('change',()=>{if(S.theme==='auto')applyTheme();});
 
 /* ---------- состояние ---------- */
-const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true,wideSci:true};
+const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true,wideSci:true,nums:false,days:true};
 let S=Object.assign({},DEF);
-let lines=[];          // {id,pos,expr,upd,del,tmp}
+let lines=[];          // {id,pos,expr,upd,at,del,tmp,label,pin,brk}  at — когда создана; brk — «новый расчёт» с этой строки
 let draft=[];          // атомы строки ввода
 let ed={id:'draft',atoms:[],cur:0,sel:null,hl:false}; // что сейчас правится; hl — число у курсора выделено (ввод дописывает в него)
 let results=new Map();
 let justCommitted=null; // после «=» следующее действие продолжает расчёт от результата
 let undoSt=[],redoSt=[],session=0;
 let sciPage=false;
+let pendingBrk=false;   // следующая строка начнёт новый расчёт
+let query='';           // текст поиска
 
 const now=()=>Date.now();
 const newId=()=>now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -213,6 +241,7 @@ function load(){
   // удалённые строки хранятся с пометкой (для будущей синхронизации и корзины), старше 30 дней — убираются
   const lim=now()-30*864e5;
   lines=lines.filter(l=>l&&Array.isArray(l.expr)&&!(l.del&&l.upd<lim)&&!l.tmp);
+  for(const l of lines)if(!l.at)l.at=l.upd||now();
   ed={id:'draft',atoms:draft,cur:draft.length,sel:null};
 }
 let saveT=0;
@@ -289,7 +318,9 @@ function activate(id,cur,sel,hl){
 function commit(){
   if(!draft.length)return;
   const L=vis();
-  const l={id:newId(),pos:(L.length?L[L.length-1].pos:0)+1,expr:draft,upd:now(),del:0};
+  const l={id:newId(),pos:(L.length?L[L.length-1].pos:0)+1,expr:draft,upd:now(),at:now(),del:0};
+  if(pendingBrk&&L.length)l.brk=1;
+  pendingBrk=false;
   lines.push(l);pushUndo([{id:l.id,before:null}],'add');
   draft=[];ed={id:'draft',atoms:draft,cur:0,sel:null};justCommitted=l.id;
   changed();scrollBottom();
@@ -357,11 +388,18 @@ function deleteLine(id){
   changed();
   if(deps.length)toast(`Строка удалена. В зависимых строках (${deps.length}) осталось число`);
 }
+// Изменение свойства строки (подпись, закрепление, разделитель) с возможностью отмены
+function setProp(id,prop,val){
+  const l=byId(id);if(!l)return;
+  pushUndo([{id,before:clone(l)}],'prop');
+  if(val===undefined)delete l[prop];else l[prop]=val;
+  l.upd=now();changed();
+}
 function insertAbove(id){
   const L=vis(),i=L.findIndex(l=>l.id===id);if(i<0)return;
   const pos=i>0?(L[i-1].pos+L[i].pos)/2:L[i].pos-1;
   leaveEdit();
-  const l={id:newId(),pos,expr:[],upd:now(),del:0,tmp:1};
+  const l={id:newId(),pos,expr:[],upd:now(),at:L[i].at||now(),del:0,tmp:1};
   lines.push(l);
   activate(l.id);
 }
@@ -413,10 +451,11 @@ function exprHTML(expr,active,sel,cur,hl){
   if(active&&!sel&&cur>=expr.length)h+=caret();
   return h;
 }
-function lineHTML(l,refd){
+function lineHTML(l,refd,no){
   const act=ed.id===l.id,r=results.get(l.id);
   const expr=act?ed.atoms:l.expr;
-  let h=exprHTML(expr,act,act?ed.sel:null,act?ed.cur:0,act&&ed.hl);
+  let h=(S.nums?`<span class="no">${no}</span>`:'')+(l.label?`<span class="lbl">${l.pin?'📌 ':''}${esc(l.label)}</span>`:(l.pin?'<span class="lbl">📌</span>':''));
+  h+=exprHTML(expr,act,act?ed.sel:null,act?ed.cur:0,act&&ed.hl);
   if(!expr.length)h+='<span class="mut">пустая строка</span>';
   if(r){
     if(r.err)h+=` <span class="eqs">=</span> <span class="err">${esc(r.err)}</span>`;
@@ -441,31 +480,71 @@ function draftHTML(){
   return h;
 }
 const nodes=new Map();
+const dayKey=t=>{const d=new Date(t);return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();};
+function dayName(t){
+  const k=dayKey(t),today=dayKey(now()),yest=dayKey(now()-864e5);
+  if(k===today)return 'Сегодня';if(k===yest)return 'Вчера';
+  const d=new Date(t);return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+}
+// Поиск: строка подходит, если запрос есть в подписи, выражении или результате (пробелы не важны, запятая = точка)
+const norm=t=>String(t).toLowerCase().replace(/[\s\u00A0\u202F]/g,'').replace(/,/g,'.').replace(/−/g,'-');
+function matches(l){
+  if(!query)return true;
+  const r=results.get(l.id);
+  return norm((l.label||'')+' '+C.exprText(l.expr,refVal,optsF())+'='+(r&&!r.err?fmtV(r.v):'')).includes(norm(query));
+}
 function render(){
   const box=$('#lines'),L=vis();
   const refd=new Set();
   for(const l of L)for(const id of C.refsOf(l.expr))refd.add(id);
   for(const id of C.refsOf(draft))refd.add(id);
   const keep=new Set();
-  let prev=null;
-  for(const l of L){
+  let prev=null,lastDay=null,found=0;
+  const place=n=>{const want=prev?prev.nextSibling:box.firstChild;if(want!==n)box.insertBefore(n,want);prev=n;};
+  const header=(key,text)=>{
+    keep.add(key);
+    let n=nodes.get(key);
+    if(!n){n=document.createElement('div');n.className='hdr';nodes.set(key,n);}
+    if(n.textContent!==text)n.textContent=text;
+    place(n);
+  };
+  L.forEach((l,ix)=>{
+    const ok=matches(l);if(ok&&query)found++;
+    // разделитель: новый день и/или «новый расчёт»
+    const day=dayKey(l.at||l.upd);
+    if(ok&&!query){
+      const parts=[];
+      if(S.days&&day!==lastDay)parts.push(dayName(l.at||l.upd));
+      if(l.brk)parts.push('новый расчёт');
+      if(parts.length)header('h:'+l.id,parts.join(' · '));
+    }
+    if(ok)lastDay=day;
     keep.add(l.id);
     let n=nodes.get(l.id);
     if(!n){n=document.createElement('div');n.className='ln';n.dataset.id=l.id;nodes.set(l.id,n);n._h='';}
-    const h=lineHTML(l,refd.has(l.id));
+    const h=lineHTML(l,refd.has(l.id),ix+1);
     if(n._h!==h){n.innerHTML=h;n._h=h;}
     n.classList.toggle('act',ed.id===l.id);
-    const want=prev?prev.nextSibling:box.firstChild;
-    if(want!==n)box.insertBefore(n,want);
-    prev=n;
-  }
+    n.classList.toggle('hidden',!ok);
+    n.classList.toggle('found',!!query&&ok);
+    place(n);
+  });
+  if(pendingBrk&&!query)header('h:pending','новый расчёт');
   let d=nodes.get('draft');
   if(!d){d=document.createElement('div');d.className='ln draft';d.dataset.id='draft';nodes.set('draft',d);}
   d.innerHTML=draftHTML();d.classList.toggle('act',false);
-  const want=prev?prev.nextSibling:box.firstChild;
-  if(want!==d)box.insertBefore(d,want);
+  place(d);
   for(const [id,n] of nodes)if(id!=='draft'&&!keep.has(id)){n.remove();nodes.delete(id);}
+  if(query)$('#qCnt').textContent=found?`найдено: ${found}`:'не найдено';
+  renderPins(L);
   $('#undoBtn').disabled=!undoSt.length;$('#redoBtn').disabled=!redoSt.length;
+}
+// Закреплённые строки — сверху ленты; нажатие вставляет значение ссылкой, долгое нажатие — меню строки
+function renderPins(L){
+  const P=L.filter(l=>l.pin),box=$('#pins');
+  box.classList.toggle('hidden',!P.length);
+  const h=P.map(l=>{const v=refVal(l.id);return `<button class="pin" data-id="${esc(l.id)}" tabindex="-1"><span>${esc(l.label||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('');
+  if(box._h!==h){box.innerHTML=h;box._h=h;}
 }
 function changed(){results=C.computeAll(lines);render();scheduleSave();if(ed.id==='draft')scrollBottom();} // строка ввода с предпросмотром всегда видна над клавиатурой
 function rerenderAll(){for(const n of nodes.values())n._h='';render();}
@@ -496,6 +575,9 @@ $('#tape').addEventListener('click',e=>{
     else activate(id,i+1,[i,i+1]);
   }
 });
+$('#pins').addEventListener('mousedown',e=>e.preventDefault());
+$('#pins').addEventListener('click',e=>{const b=e.target.closest('.pin');if(b)insertRef(b.dataset.id);});
+$('#pins').addEventListener('contextmenu',e=>{e.preventDefault();const b=e.target.closest('.pin');if(b)lineMenu(b.dataset.id);});
 // долгое нажатие (на ПК — правая кнопка мыши)
 $('#tape').addEventListener('contextmenu',e=>{
   e.preventDefault();
@@ -568,8 +650,10 @@ async function lineMenu(id,refAt,numAt){
   const nDeps=C.directDependents(lines,id).filter(x=>x.id!==id).length;
   if(nDeps)items.push({k:'unD',l:`Отвязать строки, которые ссылаются сюда (${nDeps})`});
   if(r&&!r.err)items.push({k:'ins',l:'Вставить результат в строку ввода'},{k:'cr',l:'Копировать результат'});
-  items.push({k:'cl',l:'Копировать строку'},{k:'edit',l:'Править строку'},{k:'above',l:'Вставить строку выше'},{k:'del',l:'Удалить строку',c:'dng'});
-  const k=await choose(C.exprText(l.expr,refVal,optsF())+(r&&!r.err?' = '+fmtV(r.v):''),items);
+  items.push({k:'lbl',l:l.label?'Изменить подпись':'Подпись…'},{k:'pin',l:l.pin?'Открепить':'Закрепить сверху'},
+    {k:'brk',l:l.brk?'Убрать разделитель «новый расчёт»':'Новый расчёт с этой строки'},
+    {k:'cl',l:'Копировать строку'},{k:'edit',l:'Править строку'},{k:'above',l:'Вставить строку выше'},{k:'del',l:'Удалить строку',c:'dng'});
+  const k=await choose((l.label?l.label+': ':'')+C.exprText(l.expr,refVal,optsF())+(r&&!r.err?' = '+fmtV(r.v):''),items);
   if(pieceAct(k))return;
   if(k==='un1')unlinkLine(id,refAt);
   else if(k==='unA')unlinkLine(id,null);
@@ -577,6 +661,12 @@ async function lineMenu(id,refAt,numAt){
   else if(k==='ins'){activate('draft');insertRef(id);}
   else if(k==='cr')copyResult(id);
   else if(k==='cl')copyText(lineText(l));
+  else if(k==='lbl'){
+    const t=await promptBox(l.label?'Изменить подпись':'Подпись строки',l.label||'','например: лист 2 мм, заказ 358','Пусто — подпись будет убрана. По подписи значение строки можно вставить в расчёт: кнопка «подп.» на странице функций, на ПК — начните печатать буквы.');
+    if(t!==null)setProp(id,'label',t.trim().slice(0,60)||undefined);
+  }
+  else if(k==='pin')setProp(id,'pin',l.pin?undefined:1);
+  else if(k==='brk')setProp(id,'brk',l.brk?undefined:1);
   else if(k==='edit')activate(id);
   else if(k==='above')insertAbove(id);
   else if(k==='del'){
@@ -615,7 +705,7 @@ function pasteAtoms(text){
 async function pasteFromClipboard(){
   try{pasteAtoms(await navigator.clipboard.readText());}catch(e){toast('Браузер не дал прочитать буфер. На ПК используйте Ctrl+V');}
 }
-document.addEventListener('paste',e=>{if(!$('#dlg').classList.contains('hidden'))return;e.preventDefault();pasteAtoms(e.clipboardData.getData('text'));});
+document.addEventListener('paste',e=>{if(!$('#dlg').classList.contains('hidden')||(e.target&&e.target.tagName==='INPUT'))return;e.preventDefault();pasteAtoms(e.clipboardData.getData('text'));});
 
 /* ---------- клавиатура на экране ---------- */
 const IC={
@@ -644,7 +734,7 @@ function buildPad(){
     btn('√','sm')+btn('∛','sm')+btn('²','sm')+btn('³','sm')+
     btn('^','sm')+btn('!','sm')+btn('π','sm')+btn('e','sm')+
     btn('ln','sm')+btn('log','sm')+btn('lg2','sm')+btn('abs','sm')+
-    btn('(','narrowOnly')+btn(')','narrowOnly')+btn('%','narrowOnly')+btn('×','f narrowOnly')+
+    btn('(','narrowOnly')+btn(')','narrowOnly')+btn('pick','narrowOnly sm','подп.')+btn('×','f narrowOnly')+
     btn('-','f narrowOnly')+btn('+','f narrowOnly')+btn('123','f narrowOnly sm')+btn('=','eq narrowOnly');
   setPage(sciPage);
   $('#pad').classList.toggle('min',S.padHidden);
@@ -669,6 +759,7 @@ $('#pad').addEventListener('click',e=>{
   const k=b.dataset.k;
   if(k==='tog')togglePad();
   else if(k==='123')setPage(false);
+  else if(k==='pick')pickByLabel('');
   else key(k);
 });
 
@@ -677,9 +768,12 @@ const KEYMAP={'*':'×','/':'÷','x':'×','X':'×',':':'÷',',':'.','.':'.','+':'
 document.addEventListener('keydown',e=>{
   const dlgOpen=!$('#dlg').classList.contains('hidden');
   if(dlgOpen){if(e.key==='Escape'){e.preventDefault();closeDlg(null);}return;}
+  if(e.target&&e.target.tagName==='INPUT')return; // печать в поле поиска
   const c=e.ctrlKey||e.metaKey;
   if(c&&!e.altKey){
     const k=e.key.toLowerCase();
+    if(k==='f'||k==='а'){e.preventDefault();openSearch();return;}
+    if(k==='l'||k==='д'){e.preventDefault();pickByLabel('');return;}
     if(k==='z'||k==='я'){e.preventDefault();e.shiftKey?redo():undo();}
     else if(k==='y'||k==='н'){e.preventDefault();redo();}
     else if(k==='c'||k==='с'){if(String(getSelection()))return;e.preventDefault();copyResult(ed.id);}
@@ -692,6 +786,8 @@ document.addEventListener('keydown',e=>{
   else if(/^[0-9]$/.test(e.key))k=e.key;
   else if(e.code==='NumpadDecimal')k='.';
   else if(KEYMAP[e.key])k=KEYMAP[e.key];
+  else if(e.key==='@'){e.preventDefault();pickByLabel('');return;}
+  else if(e.key.length===1&&/\p{L}/u.test(e.key)){e.preventDefault();pickByLabel(e.key);return;} // буквы — поиск по подписи
   else if(e.key==='Enter'||e.key==='='){
     if(e.shiftKey&&ed.id!=='draft'){const id=ed.id;e.preventDefault();activate('draft');insertRef(id);return;}
     k='=';
@@ -721,7 +817,8 @@ document.addEventListener('keydown',e=>{
 /* ---------- окна ---------- */
 let dlgResolve=null;
 function openDlg(html){const b=$('#dlg .box');b.innerHTML=html;$('#dlg').classList.remove('hidden');b.scrollTop=0;return new Promise(r=>dlgResolve=r);}
-function closeDlg(v){$('#dlg').classList.add('hidden');const r=dlgResolve;dlgResolve=null;if(r)r(v);}
+function closeDlg(v){const f=document.activeElement;if(f&&f.closest&&f.closest('#dlg'))f.blur(); // фокус из окна — обратно калькулятору
+  $('#dlg').classList.add('hidden');const r=dlgResolve;dlgResolve=null;if(r)r(v);}
 $('#dlg').addEventListener('click',e=>{
   if(e.target.id==='dlg'){closeDlg(null);return;}
   const b=e.target.closest('[data-r]');if(b&&b.closest('#dlg .box')&&!b.closest('.live'))closeDlg(b.dataset.r);
@@ -733,15 +830,53 @@ function confirmBox(title,text,ok,danger){
   return openDlg(`<h2>${esc(title)}</h2><div class="txt">${esc(text)}</div><div class="btns"><button data-r="no">Отмена</button><button class="${danger?'dng':'pri'}" data-r="ok">${esc(ok||'OK')}</button></div>`);
 }
 function alertBox(title,html){return openDlg(`<h2>${esc(title)}</h2><div class="txt">${html}</div><div class="btns"><button class="pri" data-r="ok">Понятно</button></div>`);}
+function promptBox(title,val,ph,note){
+  const p=openDlg(`<h2>${esc(title)}</h2><input class="inp" id="pIn" maxlength="60" placeholder="${esc(ph||'')}" value="${esc(val||'')}" autocomplete="off">${note?`<div class="foot" style="padding:0 2px 6px">${esc(note)}</div>`:''}<div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Готово</button></div>`);
+  const i=$('#pIn');i.focus();i.select();
+  i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();closeDlg('ok');}});
+  return p.then(r=>r==='ok'?$('#pIn').value:null);
+}
+// Вставить значение строки по подписи (или закреплённой строки)
+async function pickByLabel(start){
+  const L=vis().filter(l=>l.label||l.pin).reverse();
+  if(!L.length){toast('Нет строк с подписями. Долгое нажатие на строку → «Подпись…»');return;}
+  const list=q=>{
+    const n=norm(q||'');
+    const F=L.filter(l=>!n||norm(l.label||'').includes(n)||norm(C.exprText(l.expr,refVal,optsF())).includes(n));
+    return F.map(l=>{const v=refVal(l.id);return `<button class="pk" data-r="p:${esc(l.id)}"><span>${esc(l.label||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('')||'<div class="foot">Ничего не найдено</div>';
+  };
+  const p=openDlg(`<h2>Вставить по подписи</h2><input class="inp" id="pkIn" placeholder="Начните вводить подпись" value="${esc(start||'')}" autocomplete="off"><div id="pkList">${list(start)}</div><div class="btns"><button data-r="no">Отмена</button></div>`);
+  const i=$('#pkIn');i.focus();i.setSelectionRange(i.value.length,i.value.length); // курсор после первой буквы
+  i.addEventListener('input',()=>{$('#pkList').innerHTML=list(i.value);});
+  i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const f=$('#pkList .pk');if(f)closeDlg(f.dataset.r);}});
+  const r=await p;
+  if(r&&r.startsWith('p:'))insertRef(r.slice(2));
+}
 let toastT=0;
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.remove('hidden');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.add('hidden'),2300);}
+
+/* ---------- поиск ---------- */
+function openSearch(){
+  $('#search').classList.remove('hidden');const q=$('#q');q.focus();q.select();
+}
+function closeSearch(){
+  $('#q').blur();$('#search').classList.add('hidden');query='';$('#q').value='';$('#qCnt').textContent='';
+  render();scrollBottom();
+}
+$('#findBtn').onclick=()=>$('#search').classList.contains('hidden')?openSearch():closeSearch();
+$('#qClose').onclick=closeSearch;
+$('#q').addEventListener('input',e=>{query=e.target.value.trim();render();if(!query)scrollBottom();});
+$('#q').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();closeSearch();}});
 
 /* ---------- меню ---------- */
 $('#menuBtn').onclick=async()=>{
   const k=await choose('Меню',[
+    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'pick',l:'Вставить по подписи'},
     {k:'th',l:'Темы'},{k:'st',l:'Настройки'},{k:'cp',l:'Копировать всю историю'},{k:'clr',l:'Очистить историю',c:'dng'},
     {k:'help',l:'Как пользоваться'},{k:'up',l:'Проверить обновления'}],`Версия ${APP_VERSION} от ${APP_DATE}`);
-  if(k==='th')themesDlg();
+  if(k==='brk'){pendingBrk=!pendingBrk;render();scrollBottom();}
+  else if(k==='pick')pickByLabel('');
+  else if(k==='th')themesDlg();
   else if(k==='st')settingsDlg();
   else if(k==='cp'){const L=vis();if(!L.length)return toast('История пуста');copyText(L.map(lineText).join('\n'),`Скопировано строк: ${L.length}`);}
   else if(k==='clr')clearAll();
@@ -776,6 +911,8 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Клавиатура на широком экране<small>Режим монитора; переключается и кнопкой f(x) в шапке</small></div>${seg('wideSci',[['false','обычная'],['true','с функциями']],S.wideSci)}</div>
     <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
+    <div class="opt"><div class="lb">Номера строк</div>${seg('nums',[['true','да'],['false','нет']],S.nums)}</div>
+    <div class="opt"><div class="lb">Разделители по дням<small>«Сегодня», «Вчера», дата</small></div>${seg('days',[['true','да'],['false','нет']],S.days)}</div>
     <div class="opt"><div class="lb">Подсвечивать вводимое<small>В строке ввода выделяется число или знак, который вы сейчас набираете</small></div>${seg('hlIn',[['true','да'],['false','нет']],S.hlIn)}</div>
     <div class="opt"><div class="lb">Вибрация при нажатии</div>${seg('vib',[['true','да'],['false','нет']],S.vib)}</div>
     <div class="opt"><div class="lb">Сохранять историю<small>Если выключить, история хранится только до закрытия приложения</small></div>${seg('keep',[['true','да'],['false','нет']],S.keep)}</div>
@@ -825,6 +962,10 @@ function helpDlg(){
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
   <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
+  <p><b>Подписи:</b> долгое нажатие на строку → «Подпись…» (например «лист 2 мм»). Значение строки с подписью можно вставить по подписи: кнопка «подп.» на странице функций, пункт меню или на ПК — просто начните печатать буквы (или Ctrl+L).</p>
+  <p><b>Закреплённые строки</b> (долгое нажатие → «Закрепить сверху») видны над историей; нажатие вставляет значение в расчёт.</p>
+  <p><b>Новый расчёт:</b> меню → «Начать новый расчёт» — следующая строка отделится чертой. История делится и по дням.</p>
+  <p><b>Поиск:</b> кнопка-лупа или Ctrl+F — по числу, подписи или результату.</p>
   <p><b>Клавиатура ПК:</b> цифры и цифровой блок, + − * / ^ ( ) %, Enter — «=», Backspace/Delete, Esc — выход из правки или очистка ввода, ← → — курсор, ↑ ↓ — переход по строкам, Shift+Enter — вставить результат выбранной строки в ввод, Ctrl+C — копировать результат, Ctrl+V — вставить, Ctrl+Z / Ctrl+Y — отмена и повтор, p — π, r — √.</p>`);
 }
 
