@@ -73,12 +73,18 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
   #pad.min{display:none}
   #gSci,#gNum{display:grid!important}
   .grids{flex:8}
+  /* обычный калькулятор: без панели функций */
+  body.basic #gSci{display:none!important}
+  body.basic .grids{flex:5}
+  body.basic #pad{width:min(340px,38vw)}
   #gSci{flex:3;grid-template-rows:repeat(3,1fr);margin-bottom:1.5px}
   #gNum{flex:5}
   .narrowOnly{display:none!important}
   .k{font-size:21px}.k.eq{font-size:26px}.k.sm{font-size:16px}
 }
-@media not ((min-width:720px) and (min-aspect-ratio:1/1)){#kbBtn{display:none}}
+@media not ((min-width:720px) and (min-aspect-ratio:1/1)){#kbBtn,#fxBtn{display:none}}
+#fxBtn{font-weight:600;font-size:15px;font-style:italic;width:48px}
+#fxBtn.on{background:rgba(128,128,128,.22)}
 /* окна */
 #dlg{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
 #dlg .box{background:var(--dlg);color:var(--dlgInk);width:min(560px,100%);max-height:88dvh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(14px + env(safe-area-inset-bottom))}
@@ -122,6 +128,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
   <h1>Калькулятор</h1>
   <button class="ib" id="undoBtn" title="Отменить (Ctrl+Z)"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
   <button class="ib" id="redoBtn" title="Повторить (Ctrl+Y)"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+  <button class="ib" id="fxBtn" title="Калькулятор: обычный или с функциями">f(x)</button>
   <button class="ib" id="kbBtn" title="Показать или скрыть клавиатуру"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
   <button class="ib" id="menuBtn" title="Меню"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
 </header>
@@ -141,7 +148,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='1.7',APP_DATE='21.11.2026';
+const APP_VERSION='1.8',APP_DATE='21.11.2026';
 const C=window.CalcCore;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -178,7 +185,7 @@ function applyTheme(){
 mqDark.addEventListener('change',()=>{if(S.theme==='auto')applyTheme();});
 
 /* ---------- состояние ---------- */
-const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true};
+const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true,wideSci:true};
 let S=Object.assign({},DEF);
 let lines=[];          // {id,pos,expr,upd,del,tmp}
 let draft=[];          // атомы строки ввода
@@ -619,6 +626,11 @@ const IC={
 };
 const LBL={'-':'−','²':'x²','³':'x³','^':'xʸ','!':'x!','lg2':'log₂','abs':'|x|','123':'123'};
 const btn=(k,cls,lbl,style)=>`<button class="k ${cls||''}" data-k="${esc(k)}" tabindex="-1"${style?` style="${style}"`:''}>${lbl!==undefined?lbl:(LBL[k]||esc(k))}</button>`;
+function applyWide(){ // режим монитора: обычный калькулятор или с функциями
+  document.body.classList.toggle('basic',!S.wideSci);
+  $('#fxBtn').classList.toggle('on',!!S.wideSci);
+}
+function toggleWideSci(){S.wideSci=!S.wideSci;applyWide();scheduleSave();toast(S.wideSci?'Калькулятор с функциями':'Обычный калькулятор');}
 function buildPad(){
   $('#topRow').innerHTML=btn('tog','f',S.padHidden?IC.up:IC.down).replace('class="k','id="kTog" class="k')+btn('C','f',IC.clr)+btn('back','f',IC.back)+btn('÷','f');
   const sep=`<span class="sepK">${S.sep}</span>`;
@@ -736,7 +748,7 @@ $('#menuBtn').onclick=async()=>{
   else if(k==='help')helpDlg();
   else if(k==='up')checkUpdate();
 };
-$('#undoBtn').onclick=undo;$('#redoBtn').onclick=redo;$('#kbBtn').onclick=togglePad;
+$('#undoBtn').onclick=undo;$('#redoBtn').onclick=redo;$('#kbBtn').onclick=togglePad;$('#fxBtn').onclick=toggleWideSci;
 
 function themeCard(id){
   const t=id==='auto'?THEMES.dark:THEMES[id],l=id==='auto'?THEMES.light:null;
@@ -761,6 +773,7 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Десятичный разделитель</div>${seg('sep',[[',','запятая'],['.','точка']],S.sep)}</div>
     <div class="opt"><div class="lb">Пробел между тысячами<small>1 234 567</small></div>${seg('group',[['true','да'],['false','нет']],S.group)}</div>
     <div class="opt"><div class="lb">Размер цифр</div>${seg('size',[['s','мелкий'],['m','средний'],['l','крупный']],S.size)}</div>
+    <div class="opt"><div class="lb">Клавиатура на широком экране<small>Режим монитора; переключается и кнопкой f(x) в шапке</small></div>${seg('wideSci',[['false','обычная'],['true','с функциями']],S.wideSci)}</div>
     <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
     <div class="opt"><div class="lb">Подсвечивать вводимое<small>В строке ввода выделяется число или знак, который вы сейчас набираете</small></div>${seg('hlIn',[['true','да'],['false','нет']],S.hlIn)}</div>
@@ -799,7 +812,7 @@ function syncKb(){ // число и кнопки высоты клавиатур
   document.querySelectorAll('#dlg .seg[data-s="kb"] button').forEach(b=>b.classList.toggle('on',+b.dataset.v===S.kb));
 }
 function applySettings(){
-  applyDims();
+  applyDims();applyWide();
   buildPad();rerenderAll();saveNow();
 }
 function helpDlg(){
@@ -811,11 +824,12 @@ function helpDlg(){
   <p><b>Долгое нажатие</b> на строку (на ПК — правая кнопка мыши): копировать, вставить строку выше, удалить. При удалении строки в зависимых строках вместо ссылки остаётся число.</p>
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
+  <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
   <p><b>Клавиатура ПК:</b> цифры и цифровой блок, + − * / ^ ( ) %, Enter — «=», Backspace/Delete, Esc — выход из правки или очистка ввода, ← → — курсор, ↑ ↓ — переход по строкам, Shift+Enter — вставить результат выбранной строки в ввод, Ctrl+C — копировать результат, Ctrl+V — вставить, Ctrl+Z / Ctrl+Y — отмена и повтор, p — π, r — √.</p>`);
 }
 
 /* ---------- запуск ---------- */
-load();applyTheme();applyDims();
+load();applyTheme();applyDims();applyWide();
 buildPad();changed();scrollBottom();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 
