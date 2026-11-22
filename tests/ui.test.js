@@ -469,7 +469,13 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('мини: тема перенесена', await mw.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--eq').trim()), '#31a84a');
   await mw.setViewportSize({width: 360, height: 600});
   await mw.screenshot({path: OUT + '/pc-4-mini.png'});
-  await mw.close();
+  await mw.keyboard.press('Control+m').catch(() => {}); // Ctrl+M в мини-окне — вернуть (окно закрывается во время нажатия)
+  await m.waitForSelector('#lines .ln');
+  eq('мини: Ctrl+M вернул калькулятор', await m.$$eval('#miniNote', ns => ns.length), 0);
+  const [mw2] = await Promise.all([m.waitForEvent('popup'), m.keyboard.press('Control+m')]);
+  await mw2.waitForSelector('#lines .ln');
+  eq('мини: Ctrl+M открыл мини-окно', await m.$$eval('#miniNote', ns => ns.length), 1);
+  await mw2.close();
   await m.waitForSelector('#lines .ln');
   eq('мини: закрыто — всё вернулось', (await m.$$eval('#lines .ln:not(.draft)', ns => ns.map(n => n.textContent))).map(clean), ['6 × 7 = 42', '42 + 8 = 50']);
   eq('мини: заглушка убрана', await m.$$eval('#miniNote', ns => ns.length), 0);
@@ -502,7 +508,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.4']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.5']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();

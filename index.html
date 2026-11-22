@@ -170,7 +170,7 @@ body.mini #miniBtn{display:inline-flex!important}
   <button class="ib" id="undoBtn" title="Отменить (Ctrl+Z)"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
   <button class="ib" id="redoBtn" title="Повторить (Ctrl+Y)"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
   <button class="ib" id="findBtn" title="Поиск (Ctrl+F)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
-  <button class="ib hidden" id="miniBtn" title="Мини-окно поверх всех окон"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="11" width="7" height="7" rx="1"/></svg></button>
+  <button class="ib hidden" id="miniBtn" title="Мини-окно поверх всех окон (Ctrl+M)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="11" width="7" height="7" rx="1"/></svg></button>
   <button class="ib" id="fxBtn" title="Калькулятор: обычный или с функциями">f(x)</button>
   <button class="ib" id="kbBtn" title="Показать или скрыть клавиатуру"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
   <button class="ib" id="menuBtn" title="Меню"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
@@ -196,7 +196,7 @@ body.mini #miniBtn{display:inline-flex!important}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.4',APP_DATE='22.11.2026';
+const APP_VERSION='2.5',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -1025,6 +1025,7 @@ function onKey(e){
     const k=e.key.toLowerCase();
     if(k==='f'||k==='а'){e.preventDefault();openSearch();return;}
     if(k==='l'||k==='д'){e.preventDefault();pickByLabel('');return;}
+    if(k==='m'||k==='ь'){e.preventDefault();openMini();return;} // мини-окно: открыть / вернуть
     if(k==='z'||k==='я'){e.preventDefault();e.shiftKey?redo():undo();}
     else if(k==='y'||k==='н'){e.preventDefault();redo();}
     else if(k==='c'||k==='с'){if(String(WIN.getSelection()))return;e.preventDefault();copyResult(ed.id);}
@@ -1275,7 +1276,7 @@ function helpDlg(){
   <p><b>Долгое нажатие</b> на строку (на ПК — правая кнопка мыши): копировать, вставить строку выше, удалить. При удалении строки в зависимых строках вместо ссылки остаётся число.</p>
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
-  <p><b>Мини-окно</b> (Chrome на ПК): кнопка с маленьким окошком в шапке — калькулятор переходит в небольшое окно, которое висит поверх всех программ (например, SolidWorks). Закройте мини-окно — калькулятор вернётся.</p>
+  <p><b>Мини-окно</b> (Chrome на ПК): кнопка с маленьким окошком в шапке — калькулятор переходит в небольшое окно, которое висит поверх всех программ (например, SolidWorks). Закройте мини-окно — калькулятор вернётся. Горячая клавиша: Ctrl+M — открыть и вернуть обратно.</p>
   <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
   <p><b>Сумма строк:</b> долгое нажатие на строку → «Выделить строки», затем нажимайте на нужные строки. Внизу видны сумма, среднее, минимум и максимум; «Σ в ввод» вставляет сумму ссылками — при правке строк она пересчитается.</p>
   <p><b>Подбор числа:</b> долгое нажатие на число в строке → «Подобрать это число…», укажите, какой результат нужен (этой строки или зависимой), — число подберётся само.</p>
