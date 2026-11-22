@@ -222,7 +222,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.7',APP_DATE='22.11.2026';
+const APP_VERSION='2.8',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -392,7 +392,12 @@ function key(k){
   }
   if(k==='C'){if(ed.atoms.length)setEd({atoms:[],cur:0,sel:null});return;}
   if(k==='back'){setEd(C.backspace(ed));return;}
-  if(k==='del'){setEd(C.delForward(ed));return;}
+  if(k==='del'){ // Delete: выделенное число / знак справа от курсора; в конце строки ввода — очистить ввод
+    if(ed.hl&&!ed.sel){const r=C.runAround(ed.atoms,ed.cur);if(r){const a=ed.atoms.slice();a.splice(r[0],r[1]-r[0]);setEd({atoms:a,cur:r[0],sel:null});return;}}
+    if(ed.sel||ed.cur<ed.atoms.length){setEd(C.delForward(ed));return;}
+    if(ed.id==='draft'&&ed.atoms.length)setEd({atoms:[],cur:0,sel:null});
+    return;
+  }
   if(k==='left'||k==='right'||k==='home'||k==='end'){
     let c=ed.sel?(k==='left'?ed.sel[0]:ed.sel[1]):ed.cur;
     if(!ed.sel||k==='home'||k==='end'){
@@ -1121,6 +1126,11 @@ function onKey(e){
     k='=';
   }
   else if(e.key==='Backspace')k='back';
+  else if(e.key==='Delete'&&e.shiftKey){ // Shift+Delete — удалить строку истории, на которой стоите
+    e.preventDefault();
+    if(ed.id!=='draft'){const id=ed.id;leaveEdit();deleteLine(id);toast('Строка удалена — Ctrl+Z вернёт');}
+    return;
+  }
   else if(e.key==='Delete')k='del';
   else if(e.key==='ArrowLeft')k='left';
   else if(e.key==='ArrowRight')k='right';
@@ -1390,7 +1400,7 @@ function helpDlg(){
   <p><b>Закреплённые строки</b> (долгое нажатие → «Закрепить сверху») видны над историей; нажатие вставляет значение в расчёт.</p>
   <p><b>Новый расчёт:</b> меню → «Начать новый расчёт» — следующая строка отделится чертой. История делится и по дням.</p>
   <p><b>Поиск:</b> кнопка-лупа или Ctrl+F — по числу, подписи или результату.</p>
-  <p><b>Клавиатура ПК:</b> цифры и цифровой блок, + − * / ^ ( ) %, Enter — «=», Backspace/Delete, Esc — выход из правки или очистка ввода, ← → — курсор, ↑ ↓ — переход по строкам, Shift+Enter — вставить результат выбранной строки в ввод, Ctrl+C — копировать результат, Ctrl+V — вставить, Ctrl+Z / Ctrl+Y — отмена и повтор, p — π, r — √.</p>`);
+  <p><b>Клавиатура ПК:</b> цифры и цифровой блок, + − * / ^ ( ) %, Enter — «=», Backspace — стереть знак слева, Delete — знак справа от курсора или выделенное число (в конце строки ввода — очистить ввод), Shift+Delete — удалить строку, на которой стоите, Esc — выход из правки или очистка ввода, ← → — курсор, ↑ ↓ — переход по строкам, Shift+Enter — вставить результат выбранной строки в ввод, Ctrl+C — копировать результат, Ctrl+V — вставить, Ctrl+Z / Ctrl+Y — отмена и повтор, p — π, r — √.</p>`);
 }
 
 /* ---------- запуск ---------- */

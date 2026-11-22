@@ -2,7 +2,7 @@
 // ВАЖНО: при каждом обновлении приложения увеличивать VERSION вместе с APP_VERSION в index.html —
 // по этому изменению телефон узнаёт, что вышла новая версия, и показывает кнопку «Обновить».
 // Удаляются только свои старые кэши (calc-*): на домене mrtekhnik.github.io живут и другие приложения.
-const VERSION = '2.7';
+const VERSION = '2.8';
 const CACHE = 'calc-' + VERSION;
 const FILES = ['./', './index.html', './core.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable.png'];
 

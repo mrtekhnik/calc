@@ -435,6 +435,22 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК Shift+Enter', L[4], '1 024 × 3 = 3 072');
   await d.keyboard.press('Control+z');
   eq('ПК Ctrl+Z', (await dl()).length, 4);
+  // Delete по назначению
+  const dr = async () => clean(await d.$eval('.ln.draft', n => n.textContent)).replace(/\s/g, '');
+  await kb('12+34'); await d.keyboard.press('ArrowLeft'); await d.keyboard.press('ArrowLeft'); await d.keyboard.press('Delete');
+  eq('ПК Delete: знак справа от курсора', (await dr()).split('=')[0], '12+4');
+  await d.keyboard.press('End'); await d.keyboard.press('Delete');
+  eq('ПК Delete в конце ввода — очистка', await dr(), '0');
+  await d.locator('#lines .ln').nth(3).locator('.d').last().click(); await d.keyboard.press('Delete');
+  eq('ПК Delete: выделенное число удалено', clean((await dl())[3]).split('=')[0].trim().endsWith('2 ^'), true);
+  await d.keyboard.press('Control+z');
+  await d.keyboard.press('Escape');
+  const before = (await dl()).length;
+  await d.keyboard.press('ArrowUp'); await d.keyboard.press('Shift+Delete');
+  eq('ПК Shift+Delete: строка удалена', (await dl()).length, before - 1);
+  await d.keyboard.press('Control+z');
+  eq('ПК Ctrl+Z вернул строку', (await dl()).length, before);
+
   // вставка текста
   await d.evaluate(() => { const e = new ClipboardEvent('paste', {clipboardData: new DataTransfer()}); e.clipboardData.setData('text', '1 234,5 * 2'); document.dispatchEvent(e); });
   eq('ПК разряды отступом', await d.$$eval('.ln.draft .d.g', ns => ns.length), 1);
@@ -560,7 +576,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.7']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.8']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
