@@ -5,7 +5,9 @@
 - **Версия:** `APP_VERSION`/`APP_DATE` в `index.html` и `VERSION` в `sw.js` увеличивать вместе. Новая версия ждёт нажатия «Обновить» (без авто-skipWaiting). `sw.js` удаляет только свои кэши `calc-*`.
 - **Перед каждым обновлением — полные проверки:**
   `node tests/core.test.js core.js` и
-  `node tests/ui.test.js <url приложения> <папка снимков> <url tests/host.html>` (нужен Chrome и playwright).
+  `node tests/ui.test.js <url приложения> <папка снимков> <url tests/host.html>` (нужен Chrome и playwright),
+  синхронизация — на чисто запущенной имитации GitHub: `python3 tools/ghmock.py 8771`, затем `node tests/sync.test.js <url приложения> <временная папка>`.
+- **Синхронизация** — по образцу mrtekhnik/razmery: общий ключ `mrtekhnik.sync`, папка `calc/` в приватном репозитории, все строки полностью в `calc/index.json` (для восстановления из истории GitHub), шаблоны — с временем изменения и «надгробиями». Любое изменение строки обязано обновлять её `upd`.
 - Название приложения в шапке — обязательно. Без анимаций и «въезжающих» экранов.
 - Ключи localStorage — с префиксом `calc:` (хранилище общее для всех приложений на mrtekhnik.github.io).
 - Интерфейс на русском; учитывать украинские тексты.

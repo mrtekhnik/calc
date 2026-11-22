@@ -243,12 +243,12 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await tap('tog');
 
   // темы
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="th"]');
+  await p.click('#menuBtn'); await mi(p, 'th');
   await p.screenshot({path: OUT + '/phone-6-themes.png', fullPage: false});
   await p.click('#dlg .th[data-t="classic"]');
   await p.click('#dlg .btns .pri');
   await p.screenshot({path: OUT + '/phone-7-classic.png'});
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="th"]'); await p.click('#dlg .th[data-t="sunset"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await mi(p, 'th'); await p.click('#dlg .th[data-t="sunset"]'); await p.click('#dlg .btns .pri');
   await p.screenshot({path: OUT + '/phone-8-sunset.png'});
 
   // настройки: точка как разделитель
@@ -378,7 +378,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // горизонтальная ориентация телефона
   await p.setViewportSize({width: 780, height: 393});
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="th"]'); await p.click('#dlg .th[data-t="dark"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await mi(p, 'th'); await p.click('#dlg .th[data-t="dark"]'); await p.click('#dlg .btns .pri');
   await p.screenshot({path: OUT + '/phone-9-landscape.png'});
   await p.setViewportSize({width: 393, height: 780});
   await p.screenshot({path: OUT + '/phone-10-dark.png'});
@@ -618,8 +618,8 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-3.1']);
-  eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open('calc-3.1')).match('help.part'))), true);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.0']);
+  eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();

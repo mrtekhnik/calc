@@ -180,6 +180,10 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 .th .kb{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;padding-top:1px}
 .th .kb i{height:15px}
 .th .nm{font-size:13px;padding:5px 8px;background:rgba(128,128,128,.15)}
+#syncBtn{position:relative}
+#syncBtn.dot::after{content:'';position:absolute;top:9px;right:9px;width:8px;height:8px;border-radius:50%;background:#f5b800}
+#busy{position:fixed;inset:0;z-index:45;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
+#busy div{background:var(--dlg);color:var(--dlgInk);padding:16px 22px;border-radius:14px;font-size:16px}
 #helpView{position:fixed;inset:0;z-index:28;display:flex;flex-direction:column;background:var(--dlg);color:var(--dlgInk)}
 #helpView .hh{flex:none;display:flex;align-items:center;padding:env(safe-area-inset-top) 4px 0 16px;min-height:46px;background:var(--bar);color:var(--barInk);font-size:17px}
 #helpView .hh b{flex:1}
@@ -204,6 +208,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
   <h1>Калькулятор</h1>
   <button class="ib" id="undoBtn" title="Отменить (Ctrl+Z)"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
   <button class="ib" id="redoBtn" title="Повторить (Ctrl+Y)"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+  <button class="ib hidden" id="syncBtn" title="Синхронизировать с GitHub"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></svg></button>
   <button class="ib" id="findBtn" title="Поиск (Ctrl+F)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
   <button class="ib" id="sizeBtn" title="Размер мини-окна (Ctrl+↑ / Ctrl+↓)"><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
   <button class="ib hidden" id="miniBtn" title="Мини-окно поверх всех окон (Ctrl+M)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="11" width="7" height="7" rx="1"/></svg></button>
@@ -234,7 +239,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='3.1',APP_DATE='22.11.2026';
+const APP_VERSION='4.0',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -242,7 +247,7 @@ const $=s=>DOC.querySelector(s);
 const docs=()=>DOC===document?[document]:[document,DOC];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // Ключи хранилища с префиксом: на домене mrtekhnik.github.io хранилище общее для всех приложений
-const LS={lines:'calc:lines',draft:'calc:draft',set:'calc:settings'};
+const LS={lines:'calc:lines',draft:'calc:draft',set:'calc:settings',sync:'calc:sync'};
 
 /* ---------- темы ---------- */
 const DARK={bg:'#161a23',img:'none',ink:'#d8dce0',muted:'#7d8590',acc:'#34a44c',actBg:'rgba(255,255,255,.06)',selBg:'#229f44',selInk:'#fff',pad:'#19202f',key:'#2e3748',keyInk:'#d8dce0',fn:'#262e3b',fnInk:'#d8dce0',eq:'#31a84a',eqInk:'#fff',bar:'#161a23',barInk:'#d8dce0',err:'#ff7b72',dlg:'#222a37',dlgInk:'#d8dce0'};
@@ -290,7 +295,9 @@ const now=()=>Date.now();
 const newId=()=>now().toString(36)+Math.random().toString(36).slice(2,6);
 const clone=o=>o?JSON.parse(JSON.stringify(o)):null;
 const byId=id=>lines.find(l=>l.id===id&&!l.del);
-const vis=()=>lines.filter(l=>!l.del).sort((a,b)=>a.pos-b.pos);
+// порядок: позиция, при равной (строки с двух устройств) — время создания, затем номер
+const ordr=(a,b)=>(a.pos-b.pos)||((a.at||0)-(b.at||0))||(a.id<b.id?-1:a.id>b.id?1:0);
+const vis=()=>lines.filter(l=>!l.del).sort(ordr);
 const fmtV=v=>C.fmt(v,{dec:S.dec,sep:S.sep,group:S.group});
 const fmtC=v=>C.fmtCopy(v,{dec:S.dec,sep:S.sep});
 
@@ -301,17 +308,30 @@ function load(){
     try{draft=JSON.parse(localStorage.getItem(LS.draft)||'[]');}catch(e){draft=[];}
   }
   if(!Array.isArray(lines))lines=[];if(!Array.isArray(draft))draft=[];
-  // удалённые строки хранятся с пометкой (для будущей синхронизации и корзины), старше 30 дней — убираются
-  const lim=now()-30*864e5;
-  lines=lines.filter(l=>l&&Array.isArray(l.expr)&&!(l.del&&l.upd<lim)&&!l.tmp);
+  lines=lines.filter(l=>l&&Array.isArray(l.expr)&&!l.tmp);
   for(const l of lines)if(!l.at)l.at=l.upd||now();
+  try{const v=JSON.parse(localStorage.getItem(LS.sync)||'null');if(v)syncState=Object.assign({known:{},lastSync:0,purged:{}},v);}catch(e){}
+  // корзина: удалённые строки старше 30 дней удаляются навсегда
+  const lim=now()-30*864e5;
+  purgeLines(lines.filter(l=>l.del&&l.upd<lim).map(l=>l.id),true);
   ed={id:'draft',atoms:draft,cur:draft.length,sel:null};
+}
+// Состояние синхронизации: known — id → время изменения на момент последней синхронизации,
+// purged — строки, удалённые навсегда на этом устройстве (уходят в репозиторий при следующей синхронизации)
+let syncState={known:{},lastSync:0,purged:{}};
+function purgeLines(ids,quiet){
+  if(!ids.length)return;
+  const set=new Set(ids),t=now();
+  for(const id of set)if(syncState.known[id]!==undefined)syncState.purged[id]=t;
+  lines=lines.filter(l=>!set.has(l.id));
+  if(!quiet)changed();
 }
 let saveT=0;
 function saveNow(){
   clearTimeout(saveT);saveT=0;
   try{
     localStorage.setItem(LS.set,JSON.stringify(S));
+    localStorage.setItem(LS.sync,JSON.stringify(syncState));
     if(S.keep){localStorage.setItem(LS.lines,JSON.stringify(lines.filter(l=>!l.tmp||l.expr.length)));localStorage.setItem(LS.draft,JSON.stringify(draft));}
     else{localStorage.removeItem(LS.lines);localStorage.removeItem(LS.draft);}
   }catch(e){toast('Не удалось сохранить историю');}
@@ -325,7 +345,13 @@ addEventListener('pagehide',saveNow);
 function pushUndo(items,kind){undoSt.push({items,kind:kind||'',session});if(undoSt.length>200)undoSt.shift();redoSt=[];}
 function setLine(id,snap){
   const i=lines.findIndex(l=>l.id===id);
-  if(!snap){if(i>=0)lines.splice(i,1);return;}
+  if(!snap){
+    if(i<0)return;
+    if(syncState.known[id]!==undefined){lines[i].del=1;lines[i].upd=now();} // уже была на другом устройстве — в корзину
+    else lines.splice(i,1);
+    return;
+  }
+  snap.upd=now(); // отмена — тоже изменение (для синхронизации)
   if(i>=0)lines[i]=snap;else lines.push(snap);
 }
 function swapStack(from,to){
@@ -537,7 +563,7 @@ async function saveTemplate(id){
   if(await p!=='ok')return;
   const name=$('#tName').value.trim()||C.exprText(l.expr,refVal,optsF());
   const F=fields.map((v,i)=>({n:($(`#dlg [data-f="${i}"]`).value||'').trim()||String.fromCharCode(97+i%26),d:v,a:$(`#dlg [data-a="${i}"]`).checked}));
-  S.tpl=(S.tpl||[]).concat([{id:newId(),name:name.slice(0,60),parts,f:F}]);
+  S.tpl=(S.tpl||[]).concat([{id:newId(),name:name.slice(0,60),parts,f:F,mod:now()}]);
   saveNow();toast('Шаблон сохранён: меню → «Шаблоны»');
 }
 async function templatesDlg(){
@@ -548,7 +574,7 @@ async function templatesDlg(){
   const t=T.find(x=>x.id===r.slice(2));if(!t)return;
   if(r[0]==='d'){
     if(await confirmBox('Удалить шаблон?',t.name,'Удалить',1)!=='ok')return templatesDlg();
-    S.tpl=T.filter(x=>x!==t);saveNow();toast('Шаблон удалён');return templatesDlg();
+    S.tpl=T.filter(x=>x!==t);S.tplTomb=Object.assign({},S.tplTomb,{[t.id]:now()});saveNow();toast('Шаблон удалён');return templatesDlg();
   }
   useTemplate(t);
 }
@@ -644,9 +670,34 @@ function insertAbove(id){
   lines.push(l);
   activate(l.id);
 }
+/* ---------- корзина ---------- */
+const trash=()=>lines.filter(l=>l.del&&!l.tmp).sort((a,b)=>b.upd-a.upd);
+async function trashDlg(){
+  const T=trash();
+  if(!T.length){alertBox('Корзина','<p>Корзина пуста.</p><p>Сюда попадают удалённые строки. Через 30 дней они удаляются навсегда.</p>');return;}
+  const row=l=>{const r=C.evaluate(l.expr,()=>{throw new C.CalcError('x');});
+    return `<div class="tp"><button class="pk" data-r="r:${esc(l.id)}" title="Восстановить"><span>${esc((S.labels&&l.label?l.label+': ':'')+C.exprText(l.expr,refVal,optsF()))}${r&&!r.err?' = '+fmtV(r.v):''}</span><b style="font-size:12px;opacity:.7">${whenText(l.upd)}</b></button><button class="x" data-r="d:${esc(l.id)}" title="Удалить навсегда">✕</button></div>`;};
+  const k=await openDlg(`<h2>Корзина (${T.length})</h2><div class="txt">Нажмите на строку — восстановить. ✕ — удалить навсегда. Через 30 дней строки удаляются сами.</div>
+    ${T.slice(0,300).map(row).join('')}
+    <div class="btns" style="flex-wrap:wrap"><button data-r="ra">Восстановить все</button><button class="dng" data-r="ca">Очистить корзину</button><button class="pri" data-r="no">Закрыть</button></div>`);
+  if(!k||k==='no')return;
+  if(k==='ra'){restoreLines(T.map(l=>l.id));return;}
+  if(k==='ca'){if(await confirmBox('Очистить корзину?',`Строк: ${T.length}. Они будут удалены навсегда, отменить нельзя.`,'Очистить',1)==='ok'){purgeLines(T.map(l=>l.id));toast('Корзина очищена');}return trashDlg();}
+  const id=k.slice(2);
+  if(k[0]==='r')restoreLines([id]);
+  else if(k[0]==='d'){if(await confirmBox('Удалить навсегда?','Строку нельзя будет восстановить.','Удалить',1)==='ok')purgeLines([id]);}
+  if(trash().length)return trashDlg();
+}
+function restoreLines(ids){
+  const set=new Set(ids),items=[];
+  for(const l of lines)if(set.has(l.id)&&l.del){items.push({id:l.id,before:clone(l)});delete l.del;l.upd=now();}
+  if(!items.length)return;
+  pushUndo(items,'restore');changed();
+  toast(items.length===1?'Строка восстановлена':`Восстановлено строк: ${items.length}`);
+}
 async function clearAll(){
   if(!vis().length&&!draft.length)return;
-  if(await confirmBox('Очистить историю?','Все строки будут удалены. Отменить можно кнопкой «Отменить».','Очистить',1)!=='ok')return;
+  if(await confirmBox('Очистить историю?','Все строки перейдут в корзину. Вернуть можно кнопкой «Отменить» или из корзины.','Очистить',1)!=='ok')return;
   leaveEdit();
   const L=vis();
   pushUndo(L.map(l=>({id:l.id,before:clone(l)})),'del');
@@ -802,7 +853,7 @@ function renderPins(L){
   const h=P.map(l=>{const v=refVal(l.id);return `<button class="pin" data-id="${esc(l.id)}" tabindex="-1"><span>${esc((S.labels&&l.label)||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('');
   if(box._h!==h){box.innerHTML=h;box._h=h;}
 }
-function changed(){results=C.computeAll(lines);render();scheduleSave();if(ed.id==='draft')scrollBottom();} // строка ввода с предпросмотром всегда видна над клавиатурой
+function changed(){results=C.computeAll(lines);render();scheduleSave();renderSyncBtn();if(ed.id==='draft')scrollBottom();} // строка ввода с предпросмотром всегда видна над клавиатурой
 function rerenderAll(){for(const n of nodes.values())n._h='';render();}
 const scrollBottom=()=>{const t=$('#tape');t.scrollTop=t.scrollHeight;};
 new ResizeObserver(()=>{if(ed.id==='draft')scrollBottom();}).observe($('#tape'));
@@ -1299,6 +1350,191 @@ $('#sizeBtn').onclick=()=>stepMini(1);
 $('#mFab').onclick=()=>stepMini(1);
 if(miniOk())$('#miniBtn').classList.remove('hidden');
 
+/* ---------- синхронизация через GitHub (по образцу «Размеров на фото») ---------- */
+// Общая настройка подключения для всех приложений на mrtekhnik.github.io: localStorage 'mrtekhnik.sync' = {repo, token}.
+// Данные калькулятора — в папке calc/ приватного репозитория; все строки полностью в calc/index.json (одного файла
+// из истории GitHub достаточно для восстановления). Одна синхронизация — один коммит.
+const SYNC_KEY='mrtekhnik.sync',SYNC_DIR='calc';
+function syncCfg(){try{const v=JSON.parse(localStorage.getItem(SYNC_KEY)||'null');return v&&v.repo&&v.token?v:null;}catch(e){return null;}}
+function setSyncCfg(v){try{if(v)localStorage.setItem(SYNC_KEY,JSON.stringify(v));else localStorage.removeItem(SYNC_KEY);}catch(e){}}
+function apiBase(){try{return localStorage.getItem('mrtekhnik.sync.api')||'https://api.github.com';}catch(e){return 'https://api.github.com';}}
+async function gh(cfg,path,opt={}){
+  const h={Authorization:'Bearer '+cfg.token,Accept:opt.raw?'application/vnd.github.raw':'application/vnd.github+json'};if(opt.body)h['Content-Type']='application/json';
+  const r=await fetch(apiBase()+'/repos/'+cfg.repo+path,{method:opt.method||'GET',cache:'no-store',headers:h,body:opt.body?JSON.stringify(opt.body):undefined});
+  if(opt.allow404&&(r.status===404||r.status===409))return null;
+  if(!r.ok){const e=new Error('HTTP '+r.status);e.status=r.status;try{e.msg=(await r.json()).message;}catch(_){}throw e;}
+  return opt.raw?r.text():r.json();
+}
+function syncErrText(e){
+  if(e&&e.code==='empty')return 'Репозиторий пустой. Создайте его с галочкой «Add a README file».';
+  if(e&&e.code==='bad')return 'Данные калькулятора в репозитории повреждены: '+e.message+'.';
+  if(e&&e.status===401)return 'GitHub не принял токен: проверьте его или выпустите новый (возможно, истёк срок действия).';
+  if(e&&e.status===403)return 'У токена нет прав на запись. При создании токена нужно право Contents: Read and write.';
+  if(e&&e.status===404)return 'Репозиторий не найден. Проверьте имя (вид: имя/репозиторий) и что токен выдан именно для этого репозитория.';
+  if(e instanceof TypeError)return 'Нет связи с GitHub. Проверьте интернет.';
+  return 'Ошибка: '+((e&&(e.msg||e.message))||e);
+}
+const devName=()=>/Android/i.test(navigator.userAgent)?'Android':/Windows/i.test(navigator.userAgent)?'Windows':'устройство';
+// Проверка записи (из репозитория или резервной копии)
+const ATOM_OK=new Set(['0','1','2','3','4','5','6','7','8','9','.','+','-','×','÷','^','(',')',';','%','²','³','!','π','e',...C.FN]);
+function validLine(l){
+  return !!l&&typeof l.id==='string'&&l.id.length>0&&l.id.length<40&&Array.isArray(l.expr)&&l.expr.length<2000&&
+    l.expr.every(a=>typeof a==='string'?ATOM_OK.has(a):(a&&typeof a.r==='string'))&&
+    Number.isFinite(l.pos)&&Number.isFinite(l.upd)&&(l.label===undefined||typeof l.label==='string');
+}
+const LINE_KEYS=['id','pos','expr','upd','at','del','label','pin','brk','mod'];
+function cleanLine(l){const o={};for(const k of LINE_KEYS)if(l[k]!==undefined)o[k]=l[k];return o;}
+function validTpl(t){return !!t&&typeof t.id==='string'&&typeof t.name==='string'&&Array.isArray(t.parts)&&Array.isArray(t.f);}
+let syncing=false;
+function unsyncedCount(){ // изменений после последней синхронизации
+  const K=syncState.known;let n=Object.keys(syncState.purged).length;
+  for(const l of lines)if(!l.tmp&&K[l.id]!==l.upd)n++;
+  for(const t of S.tpl||[])if((t.mod||0)>syncState.lastSync)n++;
+  for(const v of Object.values(S.tplTomb||{}))if(v>syncState.lastSync)n++;
+  return n;
+}
+function renderSyncBtn(){
+  const b=$('#syncBtn');if(!b)return;
+  const on=!!syncCfg();b.classList.toggle('hidden',!on);
+  b.classList.toggle('dot',on&&unsyncedCount()>0);
+}
+function busy(on,text){
+  let el=$('#busy');
+  if(!on){if(el)el.remove();return;}
+  if(!el){el=DOC.createElement('div');el.id='busy';DOC.body.appendChild(el);}
+  el.innerHTML=`<div>${esc(text||'Синхронизация…')}</div>`;
+}
+async function syncNow(){
+  const cfg=syncCfg();if(!cfg){toast('Сначала подключите GitHub: Настройки → Синхронизация');settingsDlg();return;}
+  if(syncing)return;syncing=true;leaveEdit();saveNow();busy(true,'Синхронизация…');
+  try{
+    let res;
+    for(let a=0;a<3;a++){try{res=await syncOnce(cfg);break;}catch(e){if((e.status===422||e.status===409)&&a<2)continue;throw e;}}
+    busy(false);changed();renderSyncBtn();
+    const parts=[];if(res.up)parts.push(`отправлено ${res.up}`);if(res.down)parts.push(`получено ${res.down}`);if(res.del)parts.push(`удалено ${res.del}`);if(res.tChanged)parts.push('обновлены шаблоны');
+    if(res.conf)alertBox('Синхронизация завершена',`<p>${parts.length?esc(parts.join(', '))+'.':''}</p><p>Конфликтов: ${res.conf}. Строку меняли на обоих устройствах: основной осталась более новая версия, другая сохранена отдельной строкой с пометкой «(другая версия)». Ничего не потеряно.</p>`);
+    else toast(parts.length?'Синхронизировано: '+parts.join(', '):'Всё уже синхронизировано');
+  }catch(e){busy(false);alertBox('Синхронизация не удалась',`<p>${esc(syncErrText(e))}</p><p>Данные на устройстве не изменены.</p>`);}
+  finally{syncing=false;}
+}
+async function syncOnce(cfg){
+  const ref=await gh(cfg,'/git/ref/heads/main',{allow404:true});if(!ref){const e=new Error('empty');e.code='empty';throw e;}
+  const head=ref.object.sha,commit=await gh(cfg,'/git/commits/'+head);
+  const idxTxt=await gh(cfg,`/contents/${SYNC_DIR}/index.json?ref=${head}`,{raw:true,allow404:true});
+  let R0={};if(idxTxt){try{R0=JSON.parse(idxTxt);}catch(e){const er=new Error('index.json не читается');er.code='bad';throw er;}}
+  const R={v:1,app:'calc',items:R0.items||{},purged:R0.purged||{},tpl:R0.tpl||[],tplTomb:R0.tplTomb||{}};
+  for(const id in R.items){const it=R.items[id];if(!validLine(it)||it.id!==id){const er=new Error('строка '+id);er.code='bad';throw er;}}
+  const before=idxTxt?JSON.stringify(R0):'';
+  const L={};for(const l of lines)if(!l.tmp)L[l.id]=l;
+  const known=Object.assign({},syncState.known),purged=syncState.purged;
+  const localPut=[],localDel=[];let up=0,down=0,del=0,conf=0;
+  const push=l=>{R.items[l.id]=Object.assign({m:l.upd},cleanLine(l));delete R.purged[l.id];known[l.id]=l.upd;up++;};
+  const pull=r=>{const l=cleanLine(r);localPut.push(l);known[l.id]=r.m!==undefined?r.m:r.upd;down++;};
+  const ids=new Set([...Object.keys(L),...Object.keys(R.items),...Object.keys(purged),...Object.keys(R.purged)]);
+  for(const id of ids){
+    const l=L[id],r=R.items[id],b=known[id];
+    if(purged[id]){if(r){delete R.items[id];del++;}R.purged[id]=Math.max(R.purged[id]||0,purged[id]);delete known[id];continue;}
+    if(!r){
+      if(!l)continue;
+      if(R.purged[id]&&b!==undefined&&l.upd===b){localDel.push(id);del++;delete known[id];}else push(l);
+      continue;
+    }
+    if(!l){pull(r);continue;}
+    if(l.upd===r.m){known[id]=r.m;continue;}
+    const lc=l.upd!==b,rc=r.m!==b;
+    if(lc&&!rc){push(l);continue;}
+    if(rc&&!lc){pull(r);continue;}
+    // конфликт: основной — более новая версия, другая — отдельной строкой «(другая версия)»
+    conf++;const t=now();
+    const copyOf=x=>Object.assign(cleanLine(x),{id:newId(),pos:x.pos+1e-6,label:((x.label?x.label+' ':'')+'(другая версия)').slice(0,80),upd:t,at:x.at||t});
+    if(l.upd>r.m){push(l);const cp=copyOf(r);localPut.push(cp);push(cp);}
+    else{const cp=copyOf(l);localPut.push(cp);push(cp);pull(r);}
+  }
+  // шаблоны: объединение по времени изменения, удалённые — по «надгробиям»
+  const fm={},addT=x=>{if(!validTpl(x))return;const c=fm[x.id];if(!c||(x.mod||0)>(c.mod||0))fm[x.id]=clone(x);};
+  (S.tpl||[]).forEach(addT);R.tpl.forEach(addT);
+  const tomb=Object.assign({},R.tplTomb);for(const [k,v] of Object.entries(S.tplTomb||{}))tomb[k]=Math.max(tomb[k]||0,v);
+  const mergedT=Object.values(fm).filter(x=>!(tomb[x.id]&&tomb[x.id]>=(x.mod||0))).sort((a,b)=>a.id<b.id?-1:1);
+  const tKey=a=>JSON.stringify(a.map(x=>[x.id,x.mod||0]).sort());
+  const tChanged=tKey(mergedT)!==tKey(S.tpl||[]);
+  R.tpl=mergedT;R.tplTomb=tomb;
+  const after=JSON.stringify(R);
+  if(after!==before){
+    busy(true,'Синхронизация… запись');
+    const tree=[{path:`${SYNC_DIR}/index.json`,mode:'100644',type:'blob',content:after}];
+    const t=await gh(cfg,'/git/trees',{method:'POST',body:{base_tree:commit.tree.sha,tree}});
+    const c=await gh(cfg,'/git/commits',{method:'POST',body:{message:`Калькулятор: синхронизация (${devName()})`,tree:t.sha,parents:[head]}});
+    await gh(cfg,'/git/refs/heads/main',{method:'PATCH',body:{sha:c.sha,force:false}});
+  }
+  // применяем полученное на устройстве — только после успешной записи в репозиторий, разом
+  const map=new Map(lines.map(l=>[l.id,l]));
+  for(const l of localPut)map.set(l.id,l);
+  for(const id of localDel)map.delete(id);
+  lines=[...map.values()];
+  S.tpl=mergedT;S.tplTomb=tomb;
+  syncState={known,lastSync:now(),purged:{}};
+  if(localPut.length||localDel.length){undoSt=[];redoSt=[];} // история отмены относится к старым данным
+  saveNow();
+  return {up,down,del,conf,tChanged};
+}
+
+/* ---------- резервная копия ---------- */
+function backupData(){return {app:'calc',v:1,date:now(),lines:lines.filter(l=>!l.tmp).map(cleanLine),tpl:S.tpl||[],tplTomb:S.tplTomb||{}};}
+function makeBackup(){
+  const d=new Date(),name=`calc-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`;
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(backupData())],{type:'application/json'}));a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  S.lastBackup=now();saveNow();toast('Резервная копия сохранена: '+name);
+}
+// Разбор файла: обычная копия (app = calc) или файл синхронизации calc/index.json, скачанный с GitHub
+function parseBackup(text){
+  let o;try{o=JSON.parse(text);}catch(e){return {err:'Файл не читается: это не резервная копия калькулятора.'};}
+  let L,T=[],date=0,kind;
+  if(o&&o.app==='calc'&&Array.isArray(o.lines)){L=o.lines;T=o.tpl||[];date=o.date||0;kind='резервная копия';}
+  else if(o&&o.items&&typeof o.items==='object'&&!Array.isArray(o.items)){L=Object.values(o.items);T=o.tpl||[];kind='файл синхронизации GitHub';}
+  else return {err:'Это не резервная копия калькулятора и не файл его синхронизации (calc/index.json).'};
+  const bad=L.filter(l=>!validLine(l)).length+(Array.isArray(T)?T.filter(t=>!validTpl(t)).length:1);
+  if(bad)return {err:`Файл повреждён: записей с ошибками — ${bad}. Ничего не изменено.`};
+  L=L.map(cleanLine);
+  if(!date)date=Math.max(0,...L.map(l=>l.upd||0));
+  return {lines:L,tpl:T,date,kind};
+}
+async function restoreBackup(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';
+  const file=await new Promise(r=>{inp.onchange=()=>r(inp.files[0]||null);inp.click();});
+  if(!file)return;
+  const b=parseBackup(await file.text());
+  if(b.err){alertBox('Восстановление',`<p>${esc(b.err)}</p>`);return;}
+  const have=new Map(lines.map(l=>[l.id,l]));
+  const same=b.lines.filter(l=>have.has(l.id)).length,inTrash=b.lines.filter(l=>l.del).length;
+  const d=new Date(b.date),ds=b.date?`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'—';
+  const info=`<p>${esc(b.kind)} от ${ds}: строк ${b.lines.length}${inTrash?` (из них в корзине ${inTrash})`:''}, шаблонов ${b.tpl.length}.</p>`;
+  let mode='skip';
+  if(same){
+    const k=await openDlg(`<h2>Восстановление</h2><div class="txt">${info}<p>Совпадают с уже имеющимися: ${same}. Что сделать с ними?</p></div>
+      <button class="mi" data-r="skip">Пропустить совпадающие (оставить как есть)</button>
+      <button class="mi" data-r="copy">Добавить копией (с пометкой «(копия)»)</button>
+      <button class="mi" data-r="replace">Заменить имеющиеся строками из файла</button>
+      <div class="btns"><button data-r="no">Отмена</button></div>`);
+    if(!k||k==='no')return;mode=k;
+  }else if(await openDlg(`<h2>Восстановление</h2><div class="txt">${info}</div><div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Восстановить</button></div>`)!=='ok')return;
+  leaveEdit();
+  const t=now();let added=0;
+  const map=new Map(lines.map(l=>[l.id,l]));
+  for(const l of b.lines){
+    if(!map.has(l.id)){map.set(l.id,Object.assign(l,{upd:t}));added++;}
+    else if(mode==='replace'){map.set(l.id,Object.assign(l,{upd:t}));added++;}
+    else if(mode==='copy'){const c=Object.assign({},l,{id:newId(),label:((l.label?l.label+' ':'')+'(копия)').slice(0,80),upd:t});map.set(c.id,c);added++;}
+  }
+  lines=[...map.values()];
+  const tm=new Map((S.tpl||[]).map(x=>[x.id,x]));
+  for(const x of b.tpl)if(!tm.has(x.id)||mode==='replace')tm.set(x.id,Object.assign({},x,{mod:t}));
+  S.tpl=[...tm.values()];
+  undoSt=[];redoSt=[];S.lastRestore=t;
+  changed();saveNow();scrollBottom();
+  toast(`Восстановлено строк: ${added}`);
+}
+
 /* ---------- поиск ---------- */
 function openSearch(){
   $('#search').classList.remove('hidden');const q=$('#q');q.focus();q.select();
@@ -1314,11 +1550,19 @@ $('#q').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();c
 
 /* ---------- меню ---------- */
 $('#menuBtn').onclick=async()=>{
+  const nT=trash().length,cfg=syncCfg();
   const k=await choose('Меню',[
-    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'pick',l:'Вставить по подписи'},{k:'tpls',l:'Шаблоны'},...(miniOk()?[{k:'mini',l:pip?'Вернуть из мини-окна':'Мини-окно поверх всех окон'}]:[]),{k:'sel',l:'Выделить строки (сумма)'},
-    {k:'th',l:'Темы'},{k:'st',l:'Настройки'},{k:'cp',l:'Копировать всю историю'},{k:'clr',l:'Очистить историю',c:'dng'},
-    {k:'help',l:'Справка'},{k:'up',l:'Проверить обновления'}],`Версия ${APP_VERSION} от ${APP_DATE}`);
-  if(k==='brk'){pendingBrk=!pendingBrk;render();scrollBottom();}
+    {k:'sy',l:'Синхронизировать'},
+    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'tpls',l:'Шаблоны'},...(miniOk()?[{k:'mini',l:pip?'Вернуть из мини-окна':'Мини-окно поверх всех окон'}]:[]),
+    {k:'tr',l:nT?`Корзина (${nT})`:'Корзина'},{k:'st',l:'Настройки'},{k:'help',l:'Справка'},{k:'up',l:'Проверить обновления'},
+    {k:'pick',l:'Вставить по подписи',more:1},{k:'sel',l:'Выделить строки (сумма)',more:1},{k:'th',l:'Темы',more:1},{k:'cp',l:'Копировать всю историю',more:1},
+    {k:'bk',l:'Создать резервную копию',more:1},{k:'rs',l:'Восстановить из резервной копии',more:1},{k:'clr',l:'Очистить историю',c:'dng',more:1}],
+    `Версия ${APP_VERSION} от ${APP_DATE}<br>Синхронизация: ${cfg?(syncState.lastSync?whenText(syncState.lastSync):'ещё не было'):'не настроена'}`);
+  if(k==='sy')syncNow();
+  else if(k==='tr')trashDlg();
+  else if(k==='bk')makeBackup();
+  else if(k==='rs')restoreBackup();
+  else if(k==='brk'){pendingBrk=!pendingBrk;render();scrollBottom();}
   else if(k==='pick')pickByLabel('');
   else if(k==='tpls')templatesDlg();
   else if(k==='mini')openMini();
@@ -1331,6 +1575,7 @@ $('#menuBtn').onclick=async()=>{
   else if(k==='up')checkUpdate();
 };
 $('#helpClose').onclick=()=>closeHelp();
+$('#syncBtn').onclick=()=>syncNow();
 // оглавление: прокрутка внутри справки без перехода по адресу (в мини-окне переход закрыл бы окно)
 $('#helpView').addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;e.preventDefault();const t=$('#helpView .hb').querySelector(a.getAttribute('href'));if(t)t.scrollIntoView({block:'start'});});
 $('#undoBtn').onclick=undo;$('#redoBtn').onclick=redo;$('#kbBtn').onclick=togglePad;$('#fxBtn').onclick=toggleWideSci;
@@ -1369,7 +1614,31 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Подсвечивать вводимое<small>В строке ввода выделяется число или знак, который вы сейчас набираете</small></div>${seg('hlIn',[['true','да'],['false','нет']],S.hlIn)}</div>
     <div class="opt"><div class="lb">Вибрация при нажатии</div>${seg('vib',[['true','да'],['false','нет']],S.vib)}</div>
     <div class="opt"><div class="lb">Сохранять историю<small>Если выключить, история хранится только до закрытия приложения</small></div>${seg('keep',[['true','да'],['false','нет']],S.keep)}</div>
-  </div><div class="btns"><button class="pri" data-r="ok">Готово</button></div>`);
+  </div>
+  <div class="sync">
+    <h3 style="margin:16px 0 6px;font-size:16px">Синхронизация через GitHub</h3>
+    <div class="txt" style="font-size:13.5px;opacity:.85">Телефон и компьютер обмениваются историей и шаблонами через ваш <b>приватный</b> репозиторий — по кнопке ⟳ в шапке. Подключение общее для всех ваших приложений на mrtekhnik.github.io.</div>
+    <input class="inp" id="syRepo" placeholder="Репозиторий: mrtekhnik/sync" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <input class="inp" id="syTok" placeholder="Токен: github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore>
+    <div style="display:flex;gap:8px"><button class="mi" id="sySave" style="width:auto;border:1px solid rgba(128,128,128,.45)">Сохранить и проверить</button><button class="mi" id="syOff" style="width:auto;border:1px solid rgba(128,128,128,.45)">Отключить</button></div>
+    <div class="txt" id="syStat" style="font-size:14px;margin-top:6px"></div>
+  </div>
+  <div class="btns"><button class="pri" data-r="ok">Готово</button></div>`);
+  const c0=syncCfg();$('#syRepo').value=c0?c0.repo:'';$('#syTok').value=c0?c0.token:'';
+  $('#syStat').textContent=c0?`Подключено: ${c0.repo}`:'Не подключено';
+  $('#syOff').onclick=()=>{setSyncCfg(null);$('#syTok').value='';$('#syStat').textContent='Отключено. История на устройстве не затронута.';renderSyncBtn();};
+  $('#sySave').onclick=async()=>{
+    const repo=$('#syRepo').value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\/+$/,''),token=$('#syTok').value.trim(),st=$('#syStat');
+    if(!/^[\w.-]+\/[\w.-]+$/.test(repo)||!token){st.textContent='Укажите репозиторий в виде имя/репозиторий и токен.';return;}
+    st.textContent='Проверка…';
+    try{
+      const info=await gh({repo,token},'');
+      if(!info.private){st.textContent='Репозиторий публичный — история была бы видна всем. Нужен приватный репозиторий. Настройка не сохранена.';return;}
+      const ref=await gh({repo,token},'/git/ref/heads/main',{allow404:true});
+      if(!ref){st.textContent='Репозиторий пустой. Создайте его с галочкой «Add a README file».';return;}
+      setSyncCfg({repo,token});st.textContent=`Подключено: ${repo} (приватный) ✓`;renderSyncBtn();
+    }catch(e){st.textContent=syncErrText(e);}
+  };
   const box=$('#dlg .live');
   box.onclick=async e=>{
     const st=e.target.closest('[data-st]');
