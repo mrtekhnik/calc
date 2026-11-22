@@ -196,6 +196,35 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.click('#dlg .btns .pri');
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="kb"] button[data-v="47"]'); await p.click('#dlg .btns .pri');
 
+  // удержание «0»: нули повторяются; удержание «00»: ряд вариантов
+  const center = async sel => { const b = await p.locator(sel).boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+  await typeKeys('7');
+  let [zx, zy] = await center('#gNum [data-k="0"]');
+  await p.mouse.move(zx, zy); await p.mouse.down(); await p.waitForTimeout(1000); await p.mouse.up();
+  await p.waitForTimeout(100);
+  const zr = clean(await draftText()).replace(/\s/g, '');
+  eq('удержание 0: несколько нулей (≥3)', /^70{3,4}$/.test(zr), true);
+  eq('удержание 0: панель функций не открылась', await p.$eval('#gNum', n => !n.classList.contains('off')), true);
+  await tap('C'); await typeKeys('5');
+  [zx, zy] = await center('#gNum [data-k="00"]');
+  await p.mouse.move(zx, zy); await p.mouse.down(); await p.waitForTimeout(600);
+  eq('удержание 00: ряд вариантов', await p.$$eval('#zPop div', ns => ns.map(n => n.textContent)), ['000', '0000', '00000', '000000']);
+  await p.screenshot({path: OUT + '/phone-20-zeros.png'});
+  const last = await p.locator('#zPop div').nth(3).boundingBox();
+  await p.mouse.move(last.x + last.width / 2, last.y + last.height / 2, {steps: 6}); await p.mouse.up();
+  await p.waitForTimeout(100);
+  eq('удержание 00: выбран 000000', clean(await draftText()).replace(/\s/g, ''), '5000000');
+  eq('удержание 00: ряд закрылся', await p.$$eval('#zPop', ns => ns.length), 0);
+  await tap('C'); await typeKeys('8');
+  await p.mouse.move(zx, zy); await p.mouse.down(); await p.waitForTimeout(600); await p.mouse.up(); await p.waitForTimeout(100);
+  eq('удержание 00: отпустить сразу — 000', clean(await draftText()).replace(/\s/g, ''), '8000');
+  await tap('C'); await typeKeys('9');
+  await p.mouse.move(zx, zy); await p.mouse.down(); await p.waitForTimeout(600); await p.mouse.move(zx, zy + 160, {steps: 6}); await p.mouse.up(); await p.waitForTimeout(100);
+  eq('удержание 00: увести вниз — отмена', clean(await draftText()), '9');
+  await tap('00');
+  eq('короткое нажатие 00 как раньше', clean(await draftText()).replace(/\s/g, ''), '900');
+  await tap('C');
+
   // свернуть клавиатуру
   await tap('tog');
   eq('клавиатура свёрнута', await p.$eval('#pad', n => n.classList.contains('min')), true);
@@ -531,7 +560,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.6']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.7']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();

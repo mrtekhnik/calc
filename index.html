@@ -84,7 +84,11 @@ body.picking .ln:not(.draft){cursor:pointer}
 #pad.min .row{flex:none;height:calc(var(--padH,47)*1dvh/6)}
 .row,.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5px;background:var(--pad)}
 .row{flex:1;min-height:40px;margin-bottom:1.5px}
-.grids{flex:5;display:flex;flex-direction:column;min-height:0;touch-action:pan-y}
+.grids{flex:5;display:flex;flex-direction:column;min-height:0;touch-action:none}
+/* удержание «00»: ряд вариантов над кнопкой */
+#zPop{position:fixed;z-index:35;display:flex;gap:2px;padding:3px;border-radius:12px;background:var(--pad);box-shadow:0 4px 16px rgba(0,0,0,.45)}
+#zPop div{min-width:62px;padding:0 6px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:var(--key);color:var(--keyInk);font-size:17px;font-variant-numeric:tabular-nums}
+#zPop div.on{background:var(--eq);color:var(--eqInk)}
 .grid{flex:1;min-height:0}
 #gNum{grid-template-rows:repeat(5,1fr)}
 #gSci{grid-template-rows:repeat(6,1fr)}
@@ -218,7 +222,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.6',APP_DATE='22.11.2026';
+const APP_VERSION='2.7',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -1024,12 +1028,60 @@ function togglePad(){
 let swiped=false,sx=0,sy=0;
 $('#grids').addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;swiped=false;});
 $('#grids').addEventListener('pointerup',e=>{
+  if(hold.used)return; // удержание 0 / 00 — не свайп
   const dx=e.clientX-sx,dy=e.clientY-sy;
   if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){swiped=true;setPage(!sciPage);setTimeout(()=>swiped=false,50);}
 });
+/* ---------- удержание «0» (повтор) и «00» (ряд 000 … 000000) ---------- */
+const ZOPT=[3,4,5,6];
+const hold={t:0,rep:0,used:false,key:null,pop:null,sel:-1,x:0,y:0};
+function typeZeros(n){let st=ed;for(let i=0;i<n;i++)st=C.insert(st,'0');setEd(st);}
+function vib(){if(S.vib&&navigator.vibrate)try{navigator.vibrate(12);}catch(e){}}
+function holdEnd(){clearTimeout(hold.t);clearInterval(hold.rep);hold.t=hold.rep=0;if(hold.pop){hold.pop.remove();hold.pop=null;}hold.key=null;}
+function popSelect(x,y){
+  const cells=[...hold.pop.children];let sel=-1;
+  const pr=hold.pop.getBoundingClientRect();
+  if(y<pr.bottom+70&&y>pr.top-40)cells.forEach((c,i)=>{const r=c.getBoundingClientRect();if(x>=r.left-2&&x<=r.right+2)sel=i;});
+  if(sel<0&&y<pr.bottom+70&&y>pr.top-40)sel=x<pr.left?0:x>pr.right?cells.length-1:-1;
+  hold.sel=sel;cells.forEach((c,i)=>c.classList.toggle('on',i===sel));
+}
+$('#grids').addEventListener('pointerdown',e=>{
+  const b=e.target.closest('[data-k]');if(!b)return;
+  const k=b.dataset.k;
+  hold.used=false;
+  if(k!=='0'&&k!=='00')return;
+  hold.key=k;hold.x=e.clientX;hold.y=e.clientY;
+  try{b.setPointerCapture(e.pointerId);}catch(_){}
+  hold.t=setTimeout(()=>{
+    hold.used=true;vib();
+    if(k==='0'){typeZeros(1);hold.rep=setInterval(()=>{typeZeros(1);},250);return;}
+    // ряд вариантов над кнопкой «00»
+    const pop=DOC.createElement('div');pop.id='zPop';
+    pop.innerHTML=ZOPT.map(n=>`<div>${'0'.repeat(n)}</div>`).join('');
+    DOC.body.appendChild(pop);hold.pop=pop;
+    const r=b.getBoundingClientRect(),pw=pop.offsetWidth,vw=DOC.documentElement.clientWidth;
+    pop.style.left=Math.max(4,Math.min(vw-pw-4,r.left+r.width/2-pw/2))+'px';
+    pop.style.top=Math.max(4,r.top-pop.offsetHeight-8)+'px';
+    hold.sel=0;pop.children[0].classList.add('on'); // отпустить сразу — 000
+  },400);
+});
+$('#grids').addEventListener('pointermove',e=>{
+  if(!hold.key)return;
+  if(!hold.used){if(Math.hypot(e.clientX-hold.x,e.clientY-hold.y)>12)holdEnd();return;} // сдвинули палец до срабатывания — обычное нажатие или свайп
+  if(hold.pop&&Math.hypot(e.clientX-hold.x,e.clientY-hold.y)>12)popSelect(e.clientX,e.clientY);
+});
+const holdUp=()=>{
+  if(!hold.key)return;
+  if(hold.used&&hold.pop&&hold.sel>=0)typeZeros(ZOPT[hold.sel]);
+  holdEnd();
+  if(hold.used)setTimeout(()=>hold.used=false,60); // следующий click по кнопке не добавит ещё ноль
+};
+$('#grids').addEventListener('pointerup',holdUp);
+$('#grids').addEventListener('pointercancel',()=>{holdEnd();hold.used=false;});
+$('#pad').addEventListener('contextmenu',e=>e.preventDefault());
 $('#pad').addEventListener('mousedown',e=>e.preventDefault()); // кнопки не забирают фокус (Enter на ПК не нажмёт кнопку)
 $('#pad').addEventListener('click',e=>{
-  const b=e.target.closest('[data-k]');if(!b||swiped)return;
+  const b=e.target.closest('[data-k]');if(!b||swiped||hold.used)return;
   const k=b.dataset.k;
   if(k==='tog')togglePad();
   else if(k==='123')setPage(false);
@@ -1319,6 +1371,7 @@ function helpDlg(){
   <p><b>Убрать ссылку:</b> долгое нажатие на зелёное число — «Убрать эту ссылку»: вместо неё останется обычное число, и строка перестанет зависеть от исходной. В меню строки можно убрать все её ссылки или отвязать все строки, которые ссылаются на неё.</p>
   <p><b>Долгое нажатие</b> на строку (на ПК — правая кнопка мыши): копировать, вставить строку выше, удалить. При удалении строки в зависимых строках вместо ссылки остаётся число.</p>
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
+  <p><b>Нули:</b> удержание «0» — нули добавляются, пока держите. Удержание «00» — над кнопкой появится ряд 000 · 0000 · 00000 · 000000: ведите палец к нужному и отпустите (отпустить сразу — 000; увести палец вниз — отмена).</p>
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
   <p><b>Мини-окно</b> (Chrome на ПК): кнопка с маленьким окошком в шапке — калькулятор переходит в небольшое окно, которое висит поверх всех программ (например, SolidWorks). Закройте мини-окно — калькулятор вернётся. Горячая клавиша: Ctrl+M — открыть и вернуть обратно.</p>
   <p><b>Размер мини-окна:</b> кнопка со стрелками в шапке мини-окна (в режиме «одна строка» — слева от строки) переключает режимы: обычное → компактное → без клавиатуры → одна строка. Ctrl+↓ — меньше, Ctrl+↑ — больше. Режим запоминается. Границы окна Chrome всё равно даёт тянуть мышью — нажатие кнопки возвращает точный размер.</p>
