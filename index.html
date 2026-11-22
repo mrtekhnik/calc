@@ -131,10 +131,8 @@ body.m-line #tape{padding:2px 8px 2px 44px;overflow:hidden;justify-content:cente
 body.m-line #lines{margin-top:0}
 body.m-line .ln{display:none;font-size:22px;padding:2px 4px;white-space:nowrap;overflow:hidden;justify-content:flex-end}
 body.m-line .ln .in{white-space:nowrap}
-body.m-line .ln.draft:not(.emp),body.m-line .ln.lastln{display:flex}
-body.m-line #lines:has(.draft:not(.emp)) .ln.lastln{display:none}
-body.m-line .ln.draft.emp{display:none}
-body.m-line #lines:not(:has(.ln:not(.draft))) .ln.draft.emp{display:flex}
+/* видна только текущая строка: строка ввода (пустая — «0») или строка истории, выбранная стрелками ↑ ↓ */
+body.m-line .ln.draft.cur,body.m-line .ln.act:not(.draft){display:flex}
 body.m-line .pv{display:inline;font-size:1em;margin-left:.3em;color:var(--acc)}
 body.m-line .ln.act{background:none}
 body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:9px;align-items:center;justify-content:center;color:var(--muted);z-index:3}
@@ -222,7 +220,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.8',APP_DATE='22.11.2026';
+const APP_VERSION='2.9',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -760,7 +758,7 @@ function render(){
   if(pendingBrk&&!query)header('h:pending','новый расчёт');
   let d=nodes.get('draft');
   if(!d){d=DOC.createElement('div');d.className='ln draft';d.dataset.id='draft';nodes.set('draft',d);}
-  d.innerHTML='<span class="in">'+draftHTML()+'</span>';d.classList.toggle('act',false);d.classList.toggle('emp',!draft.length);
+  d.innerHTML='<span class="in">'+draftHTML()+'</span>';d.classList.toggle('act',false);d.classList.toggle('emp',!draft.length);d.classList.toggle('cur',ed.id==='draft');
   place(d);
   for(const [id,n] of nodes)if(id!=='draft'&&!keep.has(id)){n.remove();nodes.delete(id);}
   if(query)$('#qCnt').textContent=found?`найдено: ${found}`:'не найдено';
@@ -1385,7 +1383,7 @@ function helpDlg(){
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
   <p><b>Мини-окно</b> (Chrome на ПК): кнопка с маленьким окошком в шапке — калькулятор переходит в небольшое окно, которое висит поверх всех программ (например, SolidWorks). Закройте мини-окно — калькулятор вернётся. Горячая клавиша: Ctrl+M — открыть и вернуть обратно.</p>
   <p><b>Размер мини-окна:</b> кнопка со стрелками в шапке мини-окна (в режиме «одна строка» — слева от строки) переключает режимы: обычное → компактное → без клавиатуры → одна строка. Ctrl+↓ — меньше, Ctrl+↑ — больше. Режим запоминается. Границы окна Chrome всё равно даёт тянуть мышью — нажатие кнопки возвращает точный размер.</p>
-  <p>В режиме «одна строка» видна строка ввода с результатом, а после «=» — последний расчёт. Ввод — с клавиатуры ПК.</p>
+  <p>В режиме «одна строка» видна строка ввода с результатом; после «=» строка снова пустая. Стрелки ↑ ↓ листают историю (выбранную строку можно править), Esc — обратно к пустой строке. Ввод — с клавиатуры ПК.</p>
   <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
   <p><b>Сумма строк:</b> долгое нажатие на строку → «Выделить строки», затем нажимайте на нужные строки. Внизу видны сумма, среднее, минимум и максимум; «Σ в ввод» вставляет сумму ссылками — при правке строк она пересчитается.</p>
   <p><b>Подбор числа:</b> долгое нажатие на число в строке → «Подобрать это число…», укажите, какой результат нужен (этой строки или зависимой), — число подберётся само.</p>
