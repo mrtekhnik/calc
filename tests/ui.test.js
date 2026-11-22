@@ -271,6 +271,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.locator('#lines .ln').nth(3).click({button: 'right'});
   await mi(p, 'rnd');
   await p.click('#rFn [data-f="rup"]'); await p.click('#dlg [data-st="100"]');
+  eq('округление: пояснение «вверх»', (await p.textContent('#rHow')).startsWith('Всегда в большую сторону'), true);
   eq('округление: предпросмотр', (await p.textContent('#rRes')).startsWith('Будет: 3' + String.fromCharCode(0x202F) + '300'), true);
   await p.screenshot({path: OUT + '/phone-19-round.png'});
   await p.click('#dlg .btns .pri');
@@ -280,6 +281,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   // клавиша «окр» после выражения оборачивает его
   await typeKeys('12,34*3'); await swipe(); await tap('rnd'); await tap('123');
   eq('окр по выражению: подсказка', clean(await p.$eval('.ln.draft .pv', n => n.textContent)).includes('введите шаг'), true);
+  eq('окр по выражению: без всплывающей подсказки', await p.$eval('#toast', n => n.classList.contains('hidden') || !n.textContent.includes('шаг')), true);
   await typeKeys('0,5'); await tap('=');
   L = (await lineTexts()).map(clean);
   eq('окр по выражению', L[L.length - 1], 'окр(12,34 × 3; 0,5) = 37');
@@ -480,7 +482,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.2']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.3']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();

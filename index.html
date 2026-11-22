@@ -196,7 +196,7 @@ body.mini #miniBtn{display:inline-flex!important}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.2',APP_DATE='22.11.2026';
+const APP_VERSION='2.3',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -381,7 +381,6 @@ function key(k){
   if(C.FN_ARGS.has(k)&&!ed.sel&&ed.cur===ed.atoms.length&&C.endsOperand(ed.atoms[ed.cur-1])){
     const w=wrapRound(ed.atoms,k,[]);w.pop(); // без «)»: дальше вводится шаг
     setEd({atoms:w,cur:w.length,sel:null});
-    toast('Введите шаг округления (1, 0,1, 0,5…) и «='+'»; без шага — до целого');
     return;
   }
   let st=ed;
@@ -544,13 +543,18 @@ async function roundDlg(id){
   };
   const p=openDlg(`<h2>Округлить результат</h2><div class="txt">Сейчас: ${preview()}</div>
     <div class="live"><div class="seg" id="rFn" style="margin-bottom:10px"><button data-f="rnd" class="on">до ближайшего</button><button data-f="rup">вверх</button><button data-f="rdn">вниз</button></div>
+    <div class="txt" id="rHow" style="margin:-4px 0 10px;font-size:13.5px;opacity:.8"></div>
     <div class="txt" style="margin-bottom:6px">Шаг — до чего округлять:</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${steps.map(([v,l])=>`<button class="mi" style="width:auto;border:1px solid rgba(128,128,128,.45);padding:8px 12px" data-st="${v}">${l==='до целого'?l:l.replace('.',S.sep)}</button>`).join('')}</div>
     <input class="inp" id="rStep" inputmode="decimal" placeholder="или свой шаг, например 0,25" autocomplete="off">
     <div class="txt" id="rRes"></div></div>
     <div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Округлить</button></div>`);
   let step='1';
+  const HOW={rnd:'Обычное округление: 12,4 → 12, а 12,5 → 13.',
+    rup:'Всегда в большую сторону, даже если чуть больше: 12,1 → 13. Например, сколько листов нужно, чтобы хватило.',
+    rdn:'Всегда в меньшую сторону, хвост отбрасывается: 12,9 → 12. Например, сколько целых деталей выйдет из листа.'};
   const show=()=>{
+    $('#rHow').textContent=HOW[fn];
     const e=wrapRound(src,fn,step.split(''));
     const v=C.evaluate(e,x=>{const q=results.get(x);if(!q||q.err)throw new C.CalcError('x');return q.v;});
     $('#rRes').textContent=v&&!v.err?`Будет: ${fmtV(v.v)}  —  ${C.exprText([fn,'(','…',';',...step.split(''),')'],()=>0,optsF())}`:(v?v.err:'');
@@ -1272,7 +1276,8 @@ function helpDlg(){
   <p><b>Округление.</b> Шаг — это «до чего округлять»: шаг 1 — до целого, 0,1 — до десятых, 0,01 — до сотых, 0,5 — до половинок, 10 — до десятков.</p>
   <p>Самый простой способ: долгое нажатие на строку → «Ещё» → «Округлить результат…», выбрать «до ближайшего», «вверх» или «вниз» и шаг.</p>
   <p>С клавиатуры: наберите выражение, нажмите «окр» (или «вверх», «вниз») на странице функций — всё набранное возьмётся в скобки, затем введите шаг и «=». Пример: 12,34 × 3 → «окр» → 0,5 → «=» даёт окр(12,34 × 3; 0,5) = 37. Без шага — до целого.</p>
-  <p>Пример: вверх(1 234; 100) = 1 300; вниз(12,9; 0,5) = 12,5; окр(2,675; 0,01) = 2,68.</p>
+  <p><b>До ближайшего</b> — обычное округление: 12,4 → 12, 12,5 → 13. <b>Вверх</b> — всегда в большую сторону: 12,1 → 13 (сколько листов нужно, чтобы хватило). <b>Вниз</b> — всегда в меньшую: 12,9 → 12 (сколько целых деталей выйдет).</p>
+  <p>Пример с шагом: вверх(1 234; 100) = 1 300; вниз(12,9; 0,5) = 12,5; окр(2,675; 0,01) = 2,68.</p>
   <p><b>Шаблоны:</b> долгое нажатие на строку с формулой → «Сохранить как шаблон…», дайте числам названия. Меню → «Шаблоны» — ввести значения и получить строку расчёта.</p>
   <p><b>Меню строки:</b> сверху — частые действия, остальные под «Ещё».</p>
   <p><b>Подписи:</b> долгое нажатие на строку → «Ещё» → «Подпись…» (например «лист 2 мм»). Значение строки с подписью можно вставить по подписи: кнопка «подп.» на странице функций, пункт меню или на ПК — просто начните печатать буквы (или Ctrl+L).</p>
