@@ -119,6 +119,15 @@ const sorted = a => a.slice().sort();
   const st = await A.evaluate(async api => (await (await fetch(api + '/repos/mrtekhnik/sync/_stats', {headers: {Authorization: 'Bearer test-token'}})).json()), MOCK);
   eq('7: одна синхронизация — один запрос записи дерева, без отдельных файлов', st.blobs, 0);
 
+  // порядок: строки с двух устройств между синхронизациями идут по времени, а не через одну
+  await type(A, '11+1\n'); await A.waitForTimeout(30); await type(A, '12+1\n'); await A.waitForTimeout(30);
+  await type(B, '21+2\n'); await B.waitForTimeout(30); await type(B, '22+2\n');
+  await sync(A); await sync(B); await sync(A);
+  const tailA = (await exprs(A)).slice(-4), tailB = (await exprs(B)).slice(-4);
+  eq('порядок по времени на A', tailA, ['11 + 1', '12 + 1', '21 + 2', '22 + 2']);
+  eq('порядок одинаковый на B', tailB, tailA);
+  const fa2 = sorted(await exprs(A));
+
   // 8. восстановление из файла calc/index.json, скачанного с «GitHub»
   const idx = await A.evaluate(async api => (await fetch(api + '/repos/mrtekhnik/sync/contents/calc/index.json', {headers: {Authorization: 'Bearer test-token', Accept: 'application/vnd.github.raw'}})).text(), MOCK);
   fs.writeFileSync(TMP + '/index.json', idx);
@@ -129,7 +138,7 @@ const sorted = a => a.slice().sort();
   await Cdev.waitForSelector('#dlg:not(.hidden) .btns .pri');
   eq('8: распознан файл синхронизации', (await Cdev.textContent('#dlg .txt')).startsWith('файл синхронизации GitHub'), true);
   await Cdev.click('#dlg .btns .pri');
-  eq('8: восстановлено из index.json', sorted(await exprs(Cdev)), fa);
+  eq('8: восстановлено из index.json', sorted(await exprs(Cdev)), fa2);
   // повреждённый файл не принимается
   fs.writeFileSync(TMP + '/bad.json', JSON.stringify({items: {x: {id: 'x', expr: ['@'], pos: 1, upd: 1}}}));
   await Cdev.click('#menuBtn'); await Cdev.click('#moreBtn');

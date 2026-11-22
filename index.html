@@ -239,7 +239,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='4.0',APP_DATE='22.11.2026';
+const APP_VERSION='4.1',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -298,6 +298,9 @@ const byId=id=>lines.find(l=>l.id===id&&!l.del);
 // порядок: позиция, при равной (строки с двух устройств) — время создания, затем номер
 const ordr=(a,b)=>(a.pos-b.pos)||((a.at||0)-(b.at||0))||(a.id<b.id?-1:a.id>b.id?1:0);
 const vis=()=>lines.filter(l=>!l.del).sort(ordr);
+// Позиция новой строки — время создания (но не меньше предыдущей + 1): строки с разных устройств
+// после синхронизации встают в том порядке, в каком их считали. Старые строки (позиции 1, 2, 3…) остаются выше.
+const nextPos=L=>Math.max((L.length?L[L.length-1].pos:0)+1,now());
 const fmtV=v=>C.fmt(v,{dec:S.dec,sep:S.sep,group:S.group});
 const fmtC=v=>C.fmtCopy(v,{dec:S.dec,sep:S.sep});
 
@@ -411,7 +414,7 @@ function commit(){
   let open=0;for(const a of draft){if(a==='(')open++;else if(a===')')open--;}
   if(open>0&&C.endsOperand(draft[draft.length-1]))draft=draft.concat(Array(open).fill(')'));
   const L=vis();
-  const l={id:newId(),pos:(L.length?L[L.length-1].pos:0)+1,expr:draft,upd:now(),at:now(),del:0};
+  const l={id:newId(),pos:nextPos(L),expr:draft,upd:now(),at:now(),del:0};
   if(pendingBrk&&L.length)l.brk=1;
   pendingBrk=false;
   lines.push(l);pushUndo([{id:l.id,before:null}],'add');
@@ -606,7 +609,7 @@ async function useTemplate(t){
   }
   leaveEdit();
   const L=vis();
-  const l={id:newId(),pos:(L.length?L[L.length-1].pos:0)+1,expr,upd:now(),at:now(),del:0,label:t.name};
+  const l={id:newId(),pos:nextPos(L),expr,upd:now(),at:now(),del:0,label:t.name};
   if(pendingBrk&&L.length)l.brk=1;pendingBrk=false;
   lines.push(l);pushUndo([{id:l.id,before:null}],'add');
   justCommitted=l.id;changed();scrollBottom();
@@ -1446,7 +1449,7 @@ async function syncOnce(cfg){
     if(rc&&!lc){pull(r);continue;}
     // конфликт: основной — более новая версия, другая — отдельной строкой «(другая версия)»
     conf++;const t=now();
-    const copyOf=x=>Object.assign(cleanLine(x),{id:newId(),pos:x.pos+1e-6,label:((x.label?x.label+' ':'')+'(другая версия)').slice(0,80),upd:t,at:x.at||t});
+    const copyOf=x=>Object.assign(cleanLine(x),{id:newId(),pos:x.pos+0.001,label:((x.label?x.label+' ':'')+'(другая версия)').slice(0,80),upd:t,at:x.at||t});
     if(l.upd>r.m){push(l);const cp=copyOf(r);localPut.push(cp);push(cp);}
     else{const cp=copyOf(l);localPut.push(cp);push(cp);pull(r);}
   }
