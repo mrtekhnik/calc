@@ -220,7 +220,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.9',APP_DATE='22.11.2026';
+const APP_VERSION='3.0',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -260,7 +260,7 @@ function applyTheme(){
 mqDark.addEventListener('change',()=>{if(S.theme==='auto')applyTheme();});
 
 /* ---------- состояние ---------- */
-const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true,wideSci:true,nums:false,days:true,labels:true,showMod:true};
+const DEF={theme:'dark',dec:4,sep:',',group:true,keep:true,vib:false,size:'m',kb:47,padHidden:false,hlIn:true,wideSci:true,nums:false,days:true,labels:true,showMod:true,join:'+'};
 let S=Object.assign({},DEF);
 let lines=[];          // {id,pos,expr,upd,at,del,tmp,label,pin,brk}  at — когда создана; brk — «новый расчёт» с этой строки
 let draft=[];          // атомы строки ввода
@@ -415,6 +415,7 @@ function key(k){
   let st=ed;
   if(ed.id==='draft'&&!draft.length&&justCommitted&&byId(justCommitted)&&(C.BIN.has(k)||C.POST.has(k)))
     st={atoms:[{r:justCommitted}],cur:1,sel:null}; // продолжение от предыдущего результата
+  if(C.isRef(k)){setEd(joinValue(st,[k]));return;} // результат строки — по настройке «Знак при вставке после числа»
   setEd(C.insert(st,k));
 }
 // Что выделено в строке истории: число (атомы) или ссылка
@@ -425,11 +426,25 @@ function selectedPiece(){
   return null;
 }
 // Перенести число или ссылку в конец строки ввода (после числа или скобки ставится «×»)
+// Вставка числа или ссылки после уже стоящего числа: «+», «×» или замена последнего числа (настройка)
+function joinValue(st,piece){
+  st={atoms:st.atoms.slice(),cur:st.cur,sel:st.sel};
+  if(st.sel){st.atoms.splice(st.sel[0],st.sel[1]-st.sel[0]);st.cur=st.sel[0];st.sel=null;}
+  const prev=st.atoms[st.cur-1];
+  if(C.endsOperand(prev)){
+    const mode=S.join||'+';
+    if(mode==='replace'&&(C.isNumCh(prev)||C.isRef(prev)||C.CONST.has(prev))){
+      const r=C.isNumCh(prev)?C.runAt(st.atoms,st.cur-1):[st.cur-1,st.cur];
+      st.atoms.splice(r[0],r[1]-r[0]);st.cur=r[0];
+    }else st=C.insert(st,mode==='×'?'×':'+');
+  }
+  st.atoms.splice(st.cur,0,...piece);st.cur+=piece.length;
+  return {atoms:st.atoms,cur:st.cur,sel:null};
+}
 function toDraft(piece){
   activate('draft');
   let st={atoms:draft.slice(),cur:draft.length,sel:null};
-  if(piece.length===1&&C.isRef(piece[0]))st=C.insert(st,piece[0]);
-  else{if(C.endsOperand(st.atoms[st.cur-1]))st.atoms.push('×');st.atoms.push(...piece);st.cur=st.atoms.length;}
+  st=joinValue(st,piece);
   setEd(st);scrollBottom();
 }
 const pieceText=piece=>piece.map(a=>a==='.'?S.sep:a).join('');
@@ -1327,6 +1342,7 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Клавиатура на широком экране<small>Режим монитора; переключается и кнопкой f(x) в шапке</small></div>${seg('wideSci',[['false','обычная'],['true','с функциями']],S.wideSci)}</div>
     <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
+    <div class="opt"><div class="lb">Знак при вставке после числа<small>Когда в строку ввода, где уже стоит число, вставляется число или результат из истории</small></div>${seg('join',[['+','+'],['×','×'],['replace','заменить']],S.join)}</div>
     <div class="opt"><div class="lb">Подписи строк<small>Если выключить, подписи не показываются и не предлагаются; сохранённые подписи не удаляются</small></div>${seg('labels',[['true','да'],['false','нет']],S.labels)}</div>
     <div class="opt"><div class="lb">Показывать «изменено»<small>Над исправленной строкой — когда её меняли</small></div>${seg('showMod',[['true','да'],['false','нет']],S.showMod)}</div>
     <div class="opt"><div class="lb">Номера строк</div>${seg('nums',[['true','да'],['false','нет']],S.nums)}</div>

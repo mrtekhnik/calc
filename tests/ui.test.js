@@ -135,6 +135,17 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await tap('=');
   eq('перенос после действия', clean(await draftText()).split('=')[0].trim(), '68 + 0,155');
   await tap('C');
+  // знак при вставке после числа: по умолчанию «+», настройкой — «×» или замена
+  const setJoin = async v => { await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click(`#dlg .seg[data-s="join"] button[data-v="${v}"]`); await p.click('#dlg .btns .pri'); };
+  await typeKeys('5'); await p.locator('#lines .ln').nth(3).locator('.d').last().click(); await tap('=');
+  eq('вставка после числа: «+» по умолчанию', clean(await draftText()).split('=')[0].trim(), '5 + 68');
+  await tap('C'); await setJoin('×');
+  await typeKeys('5'); await p.locator('#lines .ln').nth(1).locator('.res').click();
+  eq('вставка результата после числа: «×»', clean(await draftText()).split('=')[0].trim(), '5 × 17 902,5');
+  await tap('C'); await setJoin('replace');
+  await typeKeys('5'); await p.locator('#lines .ln').nth(1).locator('.res').click();
+  eq('вставка после числа: заменить', clean(await draftText()), '17 902,5');
+  await tap('C'); await setJoin('+');
   // если число исправили, «=» только заканчивает правку
   await p.locator('#lines .ln').nth(3).locator('.d').last().click(); await tap('9'); await tap('=');
   eq('после правки не переносится', clean(await draftText()), '0');
@@ -584,7 +595,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.9']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-3.0']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();
