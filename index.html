@@ -115,6 +115,26 @@ body.picking .ln:not(.draft){cursor:pointer}
 }
 @media not ((min-width:720px) and (min-aspect-ratio:1/1)){#kbBtn,#fxBtn,#miniBtn{display:none}}
 body.mini #miniBtn{display:inline-flex!important}
+/* режимы мини-окна */
+#sizeBtn,#mFab{display:none}
+body.mini #sizeBtn{display:inline-flex}
+body.m-compact{--fs:19px;--fsD:23px}
+body.m-compact header.top h1{font-size:15px}
+body.m-compact .k{font-size:18px}body.m-compact .k.eq{font-size:22px}body.m-compact .k.sm{font-size:14px}
+body.m-nokb #pad{display:none!important}
+body.m-line header.top,body.m-line #pad,body.m-line #pins,body.m-line #search,body.m-line #selBar,body.m-line .hdr,body.m-line .lbl,body.m-line .no{display:none!important}
+body.m-line #tape{padding:2px 8px 2px 44px;overflow:hidden;justify-content:center}
+body.m-line #lines{margin-top:0}
+body.m-line .ln{display:none;font-size:22px;padding:2px 4px;white-space:nowrap;overflow:hidden;justify-content:flex-end}
+body.m-line .ln .in{white-space:nowrap}
+body.m-line .ln.draft:not(.emp),body.m-line .ln.lastln{display:flex}
+body.m-line #lines:has(.draft:not(.emp)) .ln.lastln{display:none}
+body.m-line .ln.draft.emp{display:none}
+body.m-line #lines:not(:has(.ln:not(.draft))) .ln.draft.emp{display:flex}
+body.m-line .pv{display:inline;font-size:1em;margin-left:.3em;color:var(--acc)}
+body.m-line .ln.act{background:none}
+body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:9px;align-items:center;justify-content:center;color:var(--muted);z-index:3}
+#left{position:relative}
 #miniNote{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg);color:var(--ink);font-size:16px;text-align:center;padding:20px}
 #miniNote button{background:var(--eq);color:var(--eqInk);padding:10px 18px;border-radius:10px;font-weight:600}
 #fxBtn{font-weight:600;font-size:15px;font-style:italic;width:48px}
@@ -170,6 +190,7 @@ body.mini #miniBtn{display:inline-flex!important}
   <button class="ib" id="undoBtn" title="Отменить (Ctrl+Z)"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
   <button class="ib" id="redoBtn" title="Повторить (Ctrl+Y)"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
   <button class="ib" id="findBtn" title="Поиск (Ctrl+F)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+  <button class="ib" id="sizeBtn" title="Размер мини-окна (Ctrl+↑ / Ctrl+↓)"><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
   <button class="ib hidden" id="miniBtn" title="Мини-окно поверх всех окон (Ctrl+M)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="11" width="7" height="7" rx="1"/></svg></button>
   <button class="ib" id="fxBtn" title="Калькулятор: обычный или с функциями">f(x)</button>
   <button class="ib" id="kbBtn" title="Показать или скрыть клавиатуру"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
@@ -180,6 +201,7 @@ body.mini #miniBtn{display:inline-flex!important}
   <div id="left">
     <div id="search" class="hidden"><input id="q" type="search" placeholder="Число или подпись" autocomplete="off"><span class="cnt" id="qCnt"></span><button class="ib" id="qClose" title="Закрыть поиск (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div id="pins" class="hidden"></div>
+    <button id="mFab" title="Размер мини-окна" tabindex="-1"><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
     <section id="tape"><div id="lines"></div></section>
     <div id="selBar" class="hidden"></div>
   </div>
@@ -196,7 +218,7 @@ body.mini #miniBtn{display:inline-flex!important}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.5',APP_DATE='22.11.2026';
+const APP_VERSION='2.6',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -718,8 +740,9 @@ function render(){
     let n=nodes.get(l.id);
     if(!n){n=DOC.createElement('div');n.className='ln';n.dataset.id=l.id;nodes.set(l.id,n);n._h='';}
     const h=lineHTML(l,refd.has(l.id),ix+1);
-    if(n._h!==h){n.innerHTML=h;n._h=h;}
+    if(n._h!==h){n.innerHTML='<span class="in">'+h+'</span>';n._h=h;}
     n.classList.toggle('act',ed.id===l.id);
+    n.classList.toggle('lastln',ix===L.length-1);
     n.classList.toggle('hidden',!ok);
     n.classList.toggle('found',!!query&&ok);
     n.classList.toggle('pick',!!picked&&picked.has(l.id));
@@ -728,7 +751,7 @@ function render(){
   if(pendingBrk&&!query)header('h:pending','новый расчёт');
   let d=nodes.get('draft');
   if(!d){d=DOC.createElement('div');d.className='ln draft';d.dataset.id='draft';nodes.set('draft',d);}
-  d.innerHTML=draftHTML();d.classList.toggle('act',false);
+  d.innerHTML='<span class="in">'+draftHTML()+'</span>';d.classList.toggle('act',false);d.classList.toggle('emp',!draft.length);
   place(d);
   for(const [id,n] of nodes)if(id!=='draft'&&!keep.has(id)){n.remove();nodes.delete(id);}
   if(query)$('#qCnt').textContent=found?`найдено: ${found}`:'не найдено';
@@ -1026,6 +1049,7 @@ function onKey(e){
     if(k==='f'||k==='а'){e.preventDefault();openSearch();return;}
     if(k==='l'||k==='д'){e.preventDefault();pickByLabel('');return;}
     if(k==='m'||k==='ь'){e.preventDefault();openMini();return;} // мини-окно: открыть / вернуть
+    if(pip&&(e.key==='ArrowDown'||e.key==='ArrowUp')){e.preventDefault();stepMini(e.key==='ArrowDown'?1:-1);return;} // размер мини-окна
     if(k==='z'||k==='я'){e.preventDefault();e.shiftKey?redo():undo();}
     else if(k==='y'||k==='н'){e.preventDefault();redo();}
     else if(k==='c'||k==='с'){if(String(WIN.getSelection()))return;e.preventDefault();copyResult(ed.id);}
@@ -1126,11 +1150,29 @@ function pipHost(){
   return 'documentPictureInPicture' in window?window:null;
 }
 const miniOk=()=>!!pipHost();
+// Режимы мини-окна: размер выставляется кнопкой точно (мышью Chrome всё равно даёт тянуть границы)
+const MINI={full:{w:360,h:600,n:'обычное'},compact:{w:290,h:430,n:'компактное'},nokb:{w:340,h:220,n:'без клавиатуры'},line:{w:380,h:60,n:'одна строка'}};
+const MINI_ORDER=['full','compact','nokb','line'];
+function setMiniMode(m,resize){
+  if(!MINI[m])m='full';
+  S.miniMode=m;scheduleSave();
+  if(!pip)return;
+  for(const k of MINI_ORDER)pip.document.body.classList.toggle('m-'+k,k===m);
+  if(resize){
+    try{pip.resizeTo(MINI[m].w+(pip.outerWidth-pip.innerWidth),MINI[m].h+(pip.outerHeight-pip.innerHeight));}catch(e){}
+  }
+  render();scrollBottom();
+}
+function stepMini(dir){ // dir: +1 — следующий режим (меньше), -1 — предыдущий (больше)
+  const i=MINI_ORDER.indexOf(S.miniMode||'full');
+  setMiniMode(MINI_ORDER[(i+dir+MINI_ORDER.length)%MINI_ORDER.length],true);
+}
 async function openMini(){
   if(pip){pip.close();return;}
   if(!miniOk()){toast('Мини-окно поддерживает только Chrome на компьютере');return;}
   let w;
-  try{w=await pipHost().documentPictureInPicture.requestWindow({width:360,height:600});}
+  const mm=MINI[S.miniMode]||MINI.full;
+  try{w=await pipHost().documentPictureInPicture.requestWindow({width:mm.w,height:mm.h});}
   catch(e){
     alertBox('Мини-окно не открылось',`<p>Браузер ответил: <b>${esc((e&&e.name)||'')}</b> ${esc((e&&e.message)||'')}</p>
       <p>Возможные причины: функция отключена настройками или политикой компьютера (часто на рабочих ПК), старая версия Chrome (нужна 116 или новее; версия видна на странице chrome://version), приложение открыто не в Chrome.</p>
@@ -1159,9 +1201,11 @@ async function openMini(){
     DOC=document;WIN=window;pip=null;
     render();scrollBottom();
   });
-  render();scrollBottom();
+  setMiniMode(S.miniMode||'full',false);
 }
 $('#miniBtn').onclick=openMini;
+$('#sizeBtn').onclick=()=>stepMini(1);
+$('#mFab').onclick=()=>stepMini(1);
 if(miniOk())$('#miniBtn').classList.remove('hidden');
 
 /* ---------- поиск ---------- */
@@ -1277,6 +1321,8 @@ function helpDlg(){
   <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
   <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
   <p><b>Мини-окно</b> (Chrome на ПК): кнопка с маленьким окошком в шапке — калькулятор переходит в небольшое окно, которое висит поверх всех программ (например, SolidWorks). Закройте мини-окно — калькулятор вернётся. Горячая клавиша: Ctrl+M — открыть и вернуть обратно.</p>
+  <p><b>Размер мини-окна:</b> кнопка со стрелками в шапке мини-окна (в режиме «одна строка» — слева от строки) переключает режимы: обычное → компактное → без клавиатуры → одна строка. Ctrl+↓ — меньше, Ctrl+↑ — больше. Режим запоминается. Границы окна Chrome всё равно даёт тянуть мышью — нажатие кнопки возвращает точный размер.</p>
+  <p>В режиме «одна строка» видна строка ввода с результатом, а после «=» — последний расчёт. Ввод — с клавиатуры ПК.</p>
   <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
   <p><b>Сумма строк:</b> долгое нажатие на строку → «Выделить строки», затем нажимайте на нужные строки. Внизу видны сумма, среднее, минимум и максимум; «Σ в ввод» вставляет сумму ссылками — при правке строк она пересчитается.</p>
   <p><b>Подбор числа:</b> долгое нажатие на число в строке → «Подобрать это число…», укажите, какой результат нужен (этой строки или зависимой), — число подберётся само.</p>
