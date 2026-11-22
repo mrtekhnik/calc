@@ -1,4 +1,4 @@
-// Проверка интерфейса в Chrome: node tests/ui.test.js <url> <папка для снимков>
+// Проверка интерфейса в Chrome: node tests/ui.test.js <url приложения> <папка для снимков> [<url tests/host.html — проверка внутри лаунчера>]
 const {chromium} = require('/opt/npm-tools/node_modules/playwright');
 const URL = process.argv[2], OUT = process.argv[3];
 let ok = 0, fail = 0;
@@ -448,7 +448,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // мини-окно поверх всех окон: в тесте окно Chrome «картинка в картинке» заменено обычным всплывающим окном
   const pcm = await browser.newContext({viewport: {width: 1280, height: 720}});
-  await pcm.addInitScript(() => { window.documentPictureInPicture = {requestWindow: async o => window.open('', 'mini', `width=${o.width},height=${o.height}`)}; });
+  await pcm.addInitScript(() => { Object.defineProperty(window, 'documentPictureInPicture', {configurable: true, value: {requestWindow: async o => window.open('', 'mini', `width=${o.width},height=${o.height}`)}}); });
   const m = await pcm.newPage();
   m.on('pageerror', e => errors.push('mini: ' + e.message));
   await m.goto(URL);
@@ -477,12 +477,32 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('мини: клавиатура снова в основном окне', clean(await m.$eval('.ln.draft', n => n.textContent)), '9');
   await pcm.close();
 
+  // мини-окно из калькулятора, открытого внутри лаунчера (врезка на том же сайте): окно просит лаунчер
+  if (process.argv[4]) {
+    const pcf = await browser.newContext({viewport: {width: 1280, height: 720}});
+    await pcf.addInitScript(() => { Object.defineProperty(window, 'documentPictureInPicture', {configurable: true, value: {requestWindow: async o => { window.__pipFrom = window === window.top ? 'лаунчер' : 'врезка'; return window.open('', 'mini', `width=${o.width},height=${o.height}`); }}}); });
+    const host = await pcf.newPage();
+    host.on('pageerror', e => errors.push('host: ' + e.message));
+    await host.goto(process.argv[4]);
+    const fr = host.frameLocator('#app');
+    await fr.locator('#lines').waitFor({state: 'attached'});
+    await host.frames()[1].evaluate(() => { for (const k of ['5', '×', '5']) key(k); key('='); });
+    const [fw] = await Promise.all([host.waitForEvent('popup'), fr.locator('#miniBtn').click()]);
+    await fw.waitForSelector('#lines .ln');
+    eq('врезка: мини-окно запрошено у лаунчера', await host.evaluate(() => window.__pipFrom), 'лаунчер');
+    eq('врезка: история в мини-окне', clean(await fw.$eval('#lines .ln:not(.draft)', n => n.textContent)), '5 × 5 = 25');
+    await fw.close();
+    await fr.locator('#lines .ln:not(.draft)').first().waitFor();
+    eq('врезка: после закрытия всё вернулось', clean(await fr.locator('#lines .ln:not(.draft)').first().textContent()), '5 × 5 = 25');
+    await pcf.close();
+  }
+
   // офлайн-кэш: сервис-воркер установлен, кэш с префиксом calc-
   await d.reload();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.3']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-2.4']);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();

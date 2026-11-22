@@ -196,7 +196,7 @@ body.mini #miniBtn{display:inline-flex!important}
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='2.3',APP_DATE='22.11.2026';
+const APP_VERSION='2.4',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -1118,12 +1118,18 @@ function toast(t){const el=$('#toast');el.textContent=t;el.classList.remove('hid
 
 /* ---------- мини-окно поверх всех окон (Chrome на ПК, Document Picture-in-Picture) ---------- */
 let pip=null;
-const miniOk=()=>'documentPictureInPicture' in window;
+// Мини-окно можно открыть только из основного окна. Если калькулятор открыт внутри лаунчера «Мои приложения»
+// (вкладка-врезка), мини-окно запрашивается у окна лаунчера — оно на том же сайте.
+function pipHost(){
+  try{if(window.top!==window&&window.top.documentPictureInPicture)return window.top;}catch(e){}
+  return 'documentPictureInPicture' in window?window:null;
+}
+const miniOk=()=>!!pipHost();
 async function openMini(){
   if(pip){pip.close();return;}
   if(!miniOk()){toast('Мини-окно поддерживает только Chrome на компьютере');return;}
   let w;
-  try{w=await documentPictureInPicture.requestWindow({width:360,height:600});}
+  try{w=await pipHost().documentPictureInPicture.requestWindow({width:360,height:600});}
   catch(e){
     alertBox('Мини-окно не открылось',`<p>Браузер ответил: <b>${esc((e&&e.name)||'')}</b> ${esc((e&&e.message)||'')}</p>
       <p>Возможные причины: функция отключена настройками или политикой компьютера (часто на рабочих ПК), старая версия Chrome (нужна 116 или новее; версия видна на странице chrome://version), приложение открыто не в Chrome.</p>
