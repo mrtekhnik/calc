@@ -180,6 +180,19 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 .th .kb{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;padding-top:1px}
 .th .kb i{height:15px}
 .th .nm{font-size:13px;padding:5px 8px;background:rgba(128,128,128,.15)}
+#helpView{position:fixed;inset:0;z-index:28;display:flex;flex-direction:column;background:var(--dlg);color:var(--dlgInk)}
+#helpView .hh{flex:none;display:flex;align-items:center;padding:env(safe-area-inset-top) 4px 0 16px;min-height:46px;background:var(--bar);color:var(--barInk);font-size:17px}
+#helpView .hh b{flex:1}
+#helpView .hb{flex:1;overflow-y:auto;padding:10px 16px 30px;font-size:15px;line-height:1.5;max-width:760px;width:100%;margin:0 auto;user-select:text;-webkit-user-select:text}
+#helpView .toc{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+#helpView .toc a{padding:5px 10px;border-radius:14px;background:var(--actBg);color:inherit;text-decoration:none;font-size:13.5px}
+#helpView h3{margin:20px 0 6px;font-size:17px;color:var(--acc)}
+#helpView p{margin:0 0 8px}
+#helpView ul{margin:0 0 8px;padding-left:20px}
+#helpView li{margin-bottom:3px}
+#helpView table.keys{border-collapse:collapse;font-size:14px;width:100%}
+#helpView table.keys td{padding:5px 6px;border-bottom:1px solid rgba(128,128,128,.25);vertical-align:top}
+#helpView table.keys td:first-child{white-space:nowrap;font-weight:600;padding-right:12px}
 #toast{position:fixed;left:50%;bottom:calc(60px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:40;background:rgba(20,20,20,.92);color:#fff;padding:10px 16px;border-radius:12px;font-size:15px;max-width:calc(100% - 32px);text-align:center;pointer-events:none}
 #updBar{position:fixed;left:8px;right:8px;top:calc(50px + env(safe-area-inset-top));z-index:25;display:flex;align-items:center;gap:10px;background:var(--eq);color:var(--eqInk);padding:8px 8px 8px 14px;border-radius:12px;font-size:15px}
 #updBar span{flex:1}
@@ -215,12 +228,13 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
     </div>
   </section>
 </main>
+<div id="helpView" class="hidden"><div class="hh"><b>Калькулятор · Справка</b><button class="ib" id="helpClose" title="Закрыть (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="hb"></div></div>
 <div id="dlg" class="hidden"><div class="box"></div></div>
 <div id="toast" class="hidden"></div>
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='3.0',APP_DATE='22.11.2026';
+const APP_VERSION='3.1',APP_DATE='22.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -1110,6 +1124,8 @@ $('#pad').addEventListener('click',e=>{
 /* ---------- клавиатура ПК ---------- */
 const KEYMAP={';':';','*':'×','/':'÷','x':'×','X':'×',':':'÷',',':'.','.':'.','+':'+','-':'-','^':'^','(':'(',')':')','%':'%','!':'!','p':'π','P':'π','r':'√','R':'√'};
 function onKey(e){
+  if(e.key==='F1'){e.preventDefault();openHelp();return;}
+  if(!$('#helpView').classList.contains('hidden')){if(e.key==='Escape'){e.preventDefault();closeHelp();}return;}
   const dlgOpen=!$('#dlg').classList.contains('hidden');
   if(dlgOpen){if(e.key==='Escape'){e.preventDefault();closeDlg(null);}return;}
   if(e.target&&e.target.tagName==='INPUT')return; // печать в поле поиска
@@ -1301,7 +1317,7 @@ $('#menuBtn').onclick=async()=>{
   const k=await choose('Меню',[
     {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'pick',l:'Вставить по подписи'},{k:'tpls',l:'Шаблоны'},...(miniOk()?[{k:'mini',l:pip?'Вернуть из мини-окна':'Мини-окно поверх всех окон'}]:[]),{k:'sel',l:'Выделить строки (сумма)'},
     {k:'th',l:'Темы'},{k:'st',l:'Настройки'},{k:'cp',l:'Копировать всю историю'},{k:'clr',l:'Очистить историю',c:'dng'},
-    {k:'help',l:'Как пользоваться'},{k:'up',l:'Проверить обновления'}],`Версия ${APP_VERSION} от ${APP_DATE}`);
+    {k:'help',l:'Справка'},{k:'up',l:'Проверить обновления'}],`Версия ${APP_VERSION} от ${APP_DATE}`);
   if(k==='brk'){pendingBrk=!pendingBrk;render();scrollBottom();}
   else if(k==='pick')pickByLabel('');
   else if(k==='tpls')templatesDlg();
@@ -1311,9 +1327,12 @@ $('#menuBtn').onclick=async()=>{
   else if(k==='st')settingsDlg();
   else if(k==='cp'){const L=vis();if(!L.length)return toast('История пуста');copyText(L.map(lineText).join('\n'),`Скопировано строк: ${L.length}`);}
   else if(k==='clr')clearAll();
-  else if(k==='help')helpDlg();
+  else if(k==='help')openHelp();
   else if(k==='up')checkUpdate();
 };
+$('#helpClose').onclick=()=>closeHelp();
+// оглавление: прокрутка внутри справки без перехода по адресу (в мини-окне переход закрыл бы окно)
+$('#helpView').addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;e.preventDefault();const t=$('#helpView .hb').querySelector(a.getAttribute('href'));if(t)t.scrollIntoView({block:'start'});});
 $('#undoBtn').onclick=undo;$('#redoBtn').onclick=redo;$('#kbBtn').onclick=togglePad;$('#fxBtn').onclick=toggleWideSci;
 
 function themeCard(id){
@@ -1387,35 +1406,13 @@ function applySettings(){
   applyDims();applyWide();
   buildPad();rerenderAll();saveNow();
 }
-function helpDlg(){
-  alertBox('Как пользоваться',`
-  <p><b>Правка в истории.</b> Нажмите на число в любой строке — оно выделится: цифры дописываются в конец, ⌫ стирает по одному знаку. Нажмите на выделенное число ещё раз — появится курсор между цифрами для точной правки. Так же правятся действия (+ − × ÷). Все строки, которые ссылаются на исправленную, пересчитываются сразу. «=» заканчивает правку.</p>
-  <p><b>Перенос числа.</b> Нажмите на число в истории (оно выделится) и сразу «=» — число перенесётся в строку ввода. Если число уже исправили, «=» просто заканчивает правку. Долгое нажатие на число — «Копировать число» и «Вставить число в строку ввода».</p>
-  <p><b>Связанные значения.</b> Нажмите на результат любой строки — он вставится в строку ввода как ссылка (выделен цветом). Если исходную строку исправить, связанная пересчитается. Если после «=» сразу нажать действие, расчёт продолжится от результата.</p>
-  <p><b>Убрать ссылку:</b> долгое нажатие на зелёное число — «Убрать эту ссылку»: вместо неё останется обычное число, и строка перестанет зависеть от исходной. В меню строки можно убрать все её ссылки или отвязать все строки, которые ссылаются на неё.</p>
-  <p><b>Долгое нажатие</b> на строку (на ПК — правая кнопка мыши): копировать, вставить строку выше, удалить. При удалении строки в зависимых строках вместо ссылки остаётся число.</p>
-  <p><b>Проценты:</b> 100 + 10% = 110; 100 − 10% = 90; 200 × 15% = 30; 200 ÷ 50% = 400; просто 10% = 0,1.</p>
-  <p><b>Нули:</b> удержание «0» — нули добавляются, пока держите. Удержание «00» — над кнопкой появится ряд 000 · 0000 · 00000 · 000000: ведите палец к нужному и отпустите (отпустить сразу — 000; увести палец вниз — отмена).</p>
-  <p><b>Функции:</b> проведите по клавиатуре влево или вправо, вернуться — так же или кнопкой «123». Кнопка ⌄ сворачивает клавиатуру, высота клавиатуры — в настройках.</p>
-  <p><b>Мини-окно</b> (Chrome на ПК): кнопка с маленьким окошком в шапке — калькулятор переходит в небольшое окно, которое висит поверх всех программ (например, SolidWorks). Закройте мини-окно — калькулятор вернётся. Горячая клавиша: Ctrl+M — открыть и вернуть обратно.</p>
-  <p><b>Размер мини-окна:</b> кнопка со стрелками в шапке мини-окна (в режиме «одна строка» — слева от строки) переключает режимы: обычное → компактное → без клавиатуры → одна строка. Ctrl+↓ — меньше, Ctrl+↑ — больше. Режим запоминается. Границы окна Chrome всё равно даёт тянуть мышью — нажатие кнопки возвращает точный размер.</p>
-  <p>В режиме «одна строка» видна строка ввода с результатом; после «=» строка снова пустая. Стрелки ↑ ↓ листают историю (выбранную строку можно править), Esc — обратно к пустой строке. Ввод — с клавиатуры ПК.</p>
-  <p><b>На мониторе</b> кнопка f(x) в шапке переключает обычный калькулятор и калькулятор с функциями.</p>
-  <p><b>Сумма строк:</b> долгое нажатие на строку → «Выделить строки», затем нажимайте на нужные строки. Внизу видны сумма, среднее, минимум и максимум; «Σ в ввод» вставляет сумму ссылками — при правке строк она пересчитается.</p>
-  <p><b>Подбор числа:</b> долгое нажатие на число в строке → «Подобрать это число…», укажите, какой результат нужен (этой строки или зависимой), — число подберётся само.</p>
-  <p><b>Округление.</b> Шаг — это «до чего округлять»: шаг 1 — до целого, 0,1 — до десятых, 0,01 — до сотых, 0,5 — до половинок, 10 — до десятков.</p>
-  <p>Самый простой способ: долгое нажатие на строку → «Ещё» → «Округлить результат…», выбрать «до ближайшего», «вверх» или «вниз» и шаг.</p>
-  <p>С клавиатуры: наберите выражение, нажмите «окр» (или «вверх», «вниз») на странице функций — всё набранное возьмётся в скобки, затем введите шаг и «=». Пример: 12,34 × 3 → «окр» → 0,5 → «=» даёт окр(12,34 × 3; 0,5) = 37. Без шага — до целого.</p>
-  <p><b>До ближайшего</b> — обычное округление: 12,4 → 12, 12,5 → 13. <b>Вверх</b> — всегда в большую сторону: 12,1 → 13 (сколько листов нужно, чтобы хватило). <b>Вниз</b> — всегда в меньшую: 12,9 → 12 (сколько целых деталей выйдет).</p>
-  <p>Пример с шагом: вверх(1 234; 100) = 1 300; вниз(12,9; 0,5) = 12,5; окр(2,675; 0,01) = 2,68.</p>
-  <p><b>Шаблоны:</b> долгое нажатие на строку с формулой → «Сохранить как шаблон…», дайте числам названия. Меню → «Шаблоны» — ввести значения и получить строку расчёта.</p>
-  <p><b>Меню строки:</b> сверху — частые действия, остальные под «Ещё».</p>
-  <p><b>Подписи:</b> долгое нажатие на строку → «Ещё» → «Подпись…» (например «лист 2 мм»). Значение строки с подписью можно вставить по подписи: кнопка «подп.» на странице функций, пункт меню или на ПК — просто начните печатать буквы (или Ctrl+L).</p>
-  <p><b>Закреплённые строки</b> (долгое нажатие → «Закрепить сверху») видны над историей; нажатие вставляет значение в расчёт.</p>
-  <p><b>Новый расчёт:</b> меню → «Начать новый расчёт» — следующая строка отделится чертой. История делится и по дням.</p>
-  <p><b>Поиск:</b> кнопка-лупа или Ctrl+F — по числу, подписи или результату.</p>
-  <p><b>Клавиатура ПК:</b> цифры и цифровой блок, + − * / ^ ( ) %, Enter — «=», Backspace — стереть знак слева, Delete — знак справа от курсора или выделенное число (в конце строки ввода — очистить ввод), Shift+Delete — удалить строку, на которой стоите, Esc — выход из правки или очистка ввода, ← → — курсор, ↑ ↓ — переход по строкам, Shift+Enter — вставить результат выбранной строки в ввод, Ctrl+C — копировать результат, Ctrl+V — вставить, Ctrl+Z / Ctrl+Y — отмена и повтор, p — π, r — √.</p>`);
+// Справка — отдельный файл help.part (кэшируется для офлайна)
+async function openHelp(){
+  const v=$('#helpView'),b=v.querySelector('.hb');
+  if(!b.childElementCount){try{b.innerHTML=await (await fetch('help.part')).text();}catch(e){b.textContent='Справка недоступна: нет сети и нет сохранённой копии.';}}
+  v.classList.remove('hidden');b.scrollTop=0;
 }
+const closeHelp=()=>$('#helpView').classList.add('hidden');
 
 /* ---------- запуск ---------- */
 load();applyTheme();applyDims();applyWide();

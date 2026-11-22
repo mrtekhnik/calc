@@ -498,9 +498,32 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.click('#kbBtn');
   await d.screenshot({path: OUT + '/pc-2-nokeyboard.png'});
   await d.click('#kbBtn');
+  // справка: отдельный файл help.part
   await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="help"]');
+  await d.waitForSelector('#helpView .hb section');
+  eq('справка: открыта', await d.isVisible('#helpView'), true);
+  const secs = await d.$$eval('#helpView .hb section', ns => ns.map(n => n.id));
+  eq('справка: разделов', secs.length >= 15, true);
+  eq('справка: оглавление ведёт на существующие разделы', await d.$$eval('#helpView .toc a', as => as.every(a => document.querySelector(a.getAttribute('href')))), true);
+  await d.click('#helpView .toc a[href="#h-mini"]');
+  eq('справка: переход по оглавлению без смены адреса', [await d.isVisible('#helpView'), await d.evaluate(() => location.hash)], [true, '']);
   await d.screenshot({path: OUT + '/pc-3-help.png'});
   await d.keyboard.press('Escape');
+  eq('справка: Esc закрыл', await d.isVisible('#helpView'), false);
+  await d.keyboard.press('F1');
+  eq('справка: F1 открыл', await d.isVisible('#helpView'), true);
+  await d.click('#helpClose');
+  eq('справка: ✕ закрыл', await d.isVisible('#helpView'), false);
+  // справка описывает все пункты главного меню и все настройки
+  const src = await d.evaluate(async () => [await (await fetch('index.html')).text(), await (await fetch('help.part')).text()]);
+  const helpText = src[1].replace(/<[^>]+>/g, ' ').toLowerCase();
+  const menuBlock = src[0].slice(src[0].indexOf("choose('Меню'"), src[0].indexOf("`Версия ${APP_VERSION}"));
+  const menuLabels = [...menuBlock.matchAll(/l:'([^']+)'/g)].map(m => m[1]).filter(l => l !== 'Справка');
+  const setLabels = [...src[0].matchAll(/<div class="opt"><div class="lb">([^<$]+)/g)].map(m => m[1].trim());
+  eq('справка: пункты меню описаны', menuLabels.filter(l => !helpText.includes(l.toLowerCase())), []);
+  eq('справка: настройки описаны', setLabels.filter(l => !helpText.includes(l.toLowerCase())), []);
+  eq('справка: найдены пункты меню и настройки', [menuLabels.length >= 8, setLabels.length >= 14], [true, true]);
+  eq('справка: пункты меню с переключением', ['начать новый расчёт', 'мини-окно поверх всех окон'].filter(l => !helpText.includes(l)), []);
 
   // мини-окно поверх всех окон: в тесте окно Chrome «картинка в картинке» заменено обычным всплывающим окном
   const pcm = await browser.newContext({viewport: {width: 1280, height: 720}});
@@ -595,7 +618,8 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-3.0']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-3.1']);
+  eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open('calc-3.1')).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
   await browser.close();

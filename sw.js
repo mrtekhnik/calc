@@ -2,9 +2,9 @@
 // ВАЖНО: при каждом обновлении приложения увеличивать VERSION вместе с APP_VERSION в index.html —
 // по этому изменению телефон узнаёт, что вышла новая версия, и показывает кнопку «Обновить».
 // Удаляются только свои старые кэши (calc-*): на домене mrtekhnik.github.io живут и другие приложения.
-const VERSION = '3.0';
+const VERSION = '3.1';
 const CACHE = 'calc-' + VERSION;
-const FILES = ['./', './index.html', './core.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable.png'];
+const FILES = ['./', './index.html', './core.js', './help.part', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable.png'];
 
 // показывается, только если приложение не нашлось ни в одном сохранённом кэше и сети нет
 const OFFLINE_PAGE = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Калькулятор</title>'
