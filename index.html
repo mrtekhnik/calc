@@ -125,6 +125,7 @@ body.mini #miniBtn{display:inline-flex!important}
 /* режимы мини-окна */
 #sizeBtn,#mFab,#stripBtn,#sFab,#strip{display:none}
 body.mini #sizeBtn,body.mini #stripBtn{display:inline-flex}
+body.mini.nostrip #stripBtn,body.nostrip #sFab{display:none!important}
 body.m-line #sFab{display:flex;position:absolute;left:42px;top:50%;transform:translateY(-50%);width:32px;height:36px;border-radius:9px;align-items:center;justify-content:center;color:var(--muted);z-index:3}
 body.m-line #tape{padding-left:76px!important}
 /* полоска: только название и последний результат; нажатие — развернуть */
@@ -178,6 +179,11 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 .opt:last-child{border-bottom:0}
 .opt .lb{font-size:15px}
 .opt .lb small{display:block;opacity:.65;font-size:12.5px}
+.sg{border-bottom:1px solid rgba(128,128,128,.25)}
+.sg>summary{font-size:16px;font-weight:600;padding:12px 2px;cursor:pointer;list-style-position:inside}
+.sg[open]>summary{color:var(--acc)}
+.mm{display:flex;flex-wrap:wrap;gap:6px 14px;flex:1 1 100%}
+.mm label{display:flex;align-items:center;gap:5px;font-size:14.5px}
 .seg{display:flex;border:1px solid rgba(128,128,128,.45);border-radius:10px;overflow:hidden;flex:none}
 .seg button{padding:8px 12px;min-width:44px;font-size:15px}
 .seg button.on{background:var(--eq);color:var(--eqInk)}
@@ -263,7 +269,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='4.5',APP_DATE='25.11.2026';
+const APP_VERSION='4.6',APP_DATE='25.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -1445,6 +1451,15 @@ const miniOk=()=>!!pipHost();
 // Режимы мини-окна: размер выставляется кнопкой точно (мышью Chrome всё равно даёт тянуть границы)
 const MINI={full:{w:360,h:600,n:'обычное'},compact:{w:290,h:430,n:'компактное'},nokb:{w:340,h:220,n:'без клавиатуры'},line:{w:380,h:60,n:'одна строка'},strip:{w:260,h:40,n:'полоска'}};
 const MINI_ORDER=['full','compact','nokb','line'];
+const MINI_ALL=[...MINI_ORDER,'strip'];
+const miniOn=m=>(S.miniOn||MINI_ALL).includes(m);
+const miniOrder=()=>MINI_ORDER.filter(miniOn);
+const miniStart=()=>miniOn(S.miniMode)&&S.miniMode!=='strip'?S.miniMode:(miniOrder()[0]||'full');
+function applyMiniOn(){ // выключенный режим не предлагается; если он сейчас открыт — переход на разрешённый
+  if(!pip)return;
+  pip.document.body.classList.toggle('nostrip',!miniOn('strip'));
+  if(!miniOn(S.miniMode)&&!dlgSmall)setMiniMode(miniStart(),true);
+}
 function miniLook(m,resize){ // показать режим в мини-окне (без сохранения выбора)
   for(const k of [...MINI_ORDER,'strip'])pip.document.body.classList.toggle('m-'+k,k===m);
   if(resize){try{pip.resizeTo(MINI[m].w+(pip.outerWidth-pip.innerWidth),MINI[m].h+(pip.outerHeight-pip.innerHeight));}catch(e){}}
@@ -1472,7 +1487,8 @@ function dlgShrink(){
 // Свернуть мини-окно в полоску (не закрывая) и развернуть обратно в прежний режим
 function toggleStrip(){
   if(!pip)return;
-  if(S.miniMode==='strip')setMiniMode(S.miniPrev&&MINI[S.miniPrev]&&S.miniPrev!=='strip'?S.miniPrev:'full',true);
+  if(S.miniMode==='strip')setMiniMode(S.miniPrev&&miniOn(S.miniPrev)&&S.miniPrev!=='strip'?S.miniPrev:miniStart(),true);
+  else if(!miniOn('strip'))return;
   else{S.miniPrev=S.miniMode||'full';setMiniMode('strip',true);}
 }
 function renderStrip(){
@@ -1483,13 +1499,15 @@ function renderStrip(){
 }
 function stepMini(dir){ // dir: +1 — следующий режим (меньше), -1 — предыдущий (больше)
   if(S.miniMode==='strip'){toggleStrip();return;}
-  const i=MINI_ORDER.indexOf(S.miniMode||'full');
-  setMiniMode(MINI_ORDER[(i+dir+MINI_ORDER.length)%MINI_ORDER.length],true);
+  const O=miniOrder();if(!O.length)return;
+  const i=O.indexOf(S.miniMode);
+  setMiniMode(i<0?O[0]:O[(i+dir+O.length)%O.length],true);
 }
 async function openMini(){
   if(pip){pip.close();return;}
   if(!miniOk()){toast('Мини-окно поддерживает только Chrome на компьютере');return;}
   let w;
+  S.miniMode=miniStart();
   const mm=MINI[S.miniMode]||MINI.full;
   try{w=await pipHost().documentPictureInPicture.requestWindow({width:mm.w,height:mm.h});}
   catch(e){
@@ -1522,6 +1540,7 @@ async function openMini(){
     render();scrollBottom();
   });
   setMiniMode(S.miniMode||'full',false);
+  applyMiniOn();
 }
 $('#miniBtn').onclick=openMini;
 $('#sizeBtn').onclick=()=>stepMini(1);
@@ -1779,35 +1798,54 @@ function themesDlg(){
 }
 function settingsDlg(){
   const seg=(name,opts,val)=>`<div class="seg" data-s="${name}">${opts.map(([v,l])=>`<button data-v="${v}" class="${String(val)===String(v)?'on':''}">${l}</button>`).join('')}</div>`;
-  openDlg(`<h2>Настройки</h2><div class="live">
+  openDlg(`<h2>Настройки</h2><div class="txt" style="font-size:13px;opacity:.7;margin-bottom:4px">Нажмите на группу, чтобы раскрыть.</div><div class="live">
+    <details class="sg"><summary>Числа и расчёт</summary>
     <div class="opt"><div class="lb">Знаков после запятой<small>Не больше этого числа; у чисел меньше 1 видно минимум 4 значащие цифры</small></div>
       <div class="step"><button data-st="-">−</button><b id="decV">${S.dec}</b><button data-st="+">+</button></div></div>
     <div class="opt"><div class="lb">Десятичный разделитель</div>${seg('sep',[[',','запятая'],['.','точка']],S.sep)}</div>
     <div class="opt"><div class="lb">Пробел между тысячами<small>1 234 567</small></div>${seg('group',[['true','да'],['false','нет']],S.group)}</div>
-    ${isPhone()?`<div class="opt"><div class="lb">Размер цифр</div>${seg('size',[['s','мелкий'],['m','средний'],['l','крупный']],S.size)}</div>`:
-    `<div class="opt"><div class="lb">Размер цифр на ПК<small>История и строка ввода, в том числе в мини-окне</small></div>${seg('pcZoom',[[80,'80%'],[90,'90%'],[100,'100%'],[115,'115%'],[130,'130%'],[150,'150%']],S.pcZoom||100)}
-      <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-zst="-">−</button><b id="zV">${S.pcZoom||100}%</b><button data-zst="+">+</button></div></div>`}
-    <div class="opt"><div class="lb">Клавиатура на широком экране<small>Режим монитора; переключается и кнопкой f(x) в шапке</small></div>${seg('wideSci',[['false','обычная'],['true','с функциями']],S.wideSci)}</div>
-    <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
-      <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
     <div class="opt"><div class="lb">Знак при вставке после числа<small>Когда в строку ввода, где уже стоит число, вставляется число или результат из истории</small></div>${seg('join',[['+','+'],['×','×'],['replace','заменить']],S.join)}</div>
-    <div class="opt"><div class="lb">Подписи строк<small>Если выключить, подписи не показываются и не предлагаются; сохранённые подписи не удаляются</small></div>${seg('labels',[['true','да'],['false','нет']],S.labels)}</div>
-    <div class="opt"><div class="lb">Показывать «изменено»<small>Над исправленной строкой — когда её меняли</small></div>${seg('showMod',[['true','да'],['false','нет']],S.showMod)}</div>
+    </details>
+    <details class="sg"><summary>Внешний вид</summary>
+    ${isPhone()?`<div class="opt"><div class="lb">Размер цифр</div>${seg('size',[['s','мелкий'],['m','средний'],['l','крупный']],S.size)}</div>`:
+    `<div class="opt"><div class="lb">Размер цифр на ПК<small>История и строка ввода, в том числе в мини-окне</small></div>${seg('pcZoom',[[70,'70%'],[80,'80%'],[90,'90%'],[100,'100%'],[115,'115%'],[130,'130%'],[150,'150%']],S.pcZoom||100)}
+      <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-zst="-">−</button><b id="zV">${S.pcZoom||100}%</b><button data-zst="+">+</button></div></div>`}
+    <div class="opt"><div class="lb">Подсвечивать вводимое<small>В строке ввода выделяется число или знак, который вы сейчас набираете</small></div>${seg('hlIn',[['true','да'],['false','нет']],S.hlIn)}</div>
     <div class="opt"><div class="lb">Номера строк</div>${seg('nums',[['true','да'],['false','нет']],S.nums)}</div>
     <div class="opt"><div class="lb">Разделители по дням<small>«Сегодня», «Вчера», дата</small></div>${seg('days',[['true','да'],['false','нет']],S.days)}</div>
-    <div class="opt"><div class="lb">Подсвечивать вводимое<small>В строке ввода выделяется число или знак, который вы сейчас набираете</small></div>${seg('hlIn',[['true','да'],['false','нет']],S.hlIn)}</div>
+    <div class="opt"><div class="lb">Подписи строк<small>Если выключить, подписи не показываются и не предлагаются; сохранённые подписи не удаляются</small></div>${seg('labels',[['true','да'],['false','нет']],S.labels)}</div>
+    <div class="opt"><div class="lb">Показывать «изменено»<small>Над исправленной строкой — когда её меняли</small></div>${seg('showMod',[['true','да'],['false','нет']],S.showMod)}</div>
+    </details>
+    <details class="sg"><summary>Клавиатура</summary>
+    <div class="opt"><div class="lb">Высота клавиатуры<small>На широком экране ПК клавиатура всегда во всю высоту</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
+      <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
+    <div class="opt"><div class="lb">Клавиатура на широком экране<small>Режим монитора; переключается и кнопкой f(x) в шапке</small></div>${seg('wideSci',[['false','обычная'],['true','с функциями']],S.wideSci)}</div>
     <div class="opt"><div class="lb">Вибрация при нажатии</div>${seg('vib',[['true','да'],['false','нет']],S.vib)}</div>
+    </details>
+    ${miniOk()?`
+    <details class="sg"><summary>Мини-окно (ПК)</summary>
+    <div class="opt"><div class="lb">Режимы мини-окна<small>Какие размеры предлагать: кнопка со стрелками и Ctrl+↑ / Ctrl+↓ переключают только отмеченные; «полоска» — своя кнопка «▁»</small></div>
+      <div class="mm"><label><input type="checkbox" data-mm="full"${miniOn('full')?' checked':''}>обычное</label><label><input type="checkbox" data-mm="compact"${miniOn('compact')?' checked':''}>компактное</label><label><input type="checkbox" data-mm="nokb"${miniOn('nokb')?' checked':''}>без клавиатуры</label><label><input type="checkbox" data-mm="line"${miniOn('line')?' checked':''}>одна строка</label><label><input type="checkbox" data-mm="strip"${miniOn('strip')?' checked':''}>полоска</label></div></div>
+    </details>`:''}
+    <details class="sg"><summary>История и синхронизация</summary>
     <div class="opt"><div class="lb">Сохранять историю<small>Если выключить, история хранится только до закрытия приложения</small></div>${seg('keep',[['true','да'],['false','нет']],S.keep)}</div>
-  </div>
   <div class="sync">
-    <h3 style="margin:16px 0 6px;font-size:16px">Синхронизация через GitHub</h3>
+    <div class="lb" style="margin:8px 0 4px;font-weight:600">Синхронизация через GitHub</div>
     <div class="txt" style="font-size:13.5px;opacity:.85">Телефон и компьютер обмениваются историей и шаблонами через ваш <b>приватный</b> репозиторий — по кнопке ⟳ в шапке. Подключение общее для всех ваших приложений на mrtekhnik.github.io.</div>
     <input class="inp" id="syRepo" placeholder="Репозиторий: mrtekhnik/sync" autocomplete="off" autocapitalize="off" spellcheck="false">
     <input class="inp" id="syTok" placeholder="Токен: github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore>
     <div style="display:flex;gap:8px"><button class="mi" id="sySave" style="width:auto;border:1px solid rgba(128,128,128,.45)">Сохранить и проверить</button><button class="mi" id="syOff" style="width:auto;border:1px solid rgba(128,128,128,.45)">Отключить</button></div>
     <div class="txt" id="syStat" style="font-size:14px;margin-top:6px"></div>
   </div>
+    </details>
+  </div>
   <div class="btns"><button class="pri" data-r="ok">Готово</button></div>`);
+  $('#dlg .live').addEventListener('change',e=>{
+    const k=e.target.dataset&&e.target.dataset.mm;if(!k)return;
+    const on=new Set(S.miniOn||MINI_ALL);if(e.target.checked)on.add(k);else on.delete(k);
+    if(!MINI_ORDER.some(m=>on.has(m))){e.target.checked=true;toast('Нужен хотя бы один размер, кроме полоски');return;}
+    S.miniOn=MINI_ALL.filter(m=>on.has(m));saveNow();applyMiniOn();
+  });
   const c0=syncCfg();$('#syRepo').value=c0?c0.repo:'';$('#syTok').value=c0?c0.token:'';
   $('#syStat').textContent=c0?`Подключено: ${c0.repo}`:'Не подключено';
   $('#syOff').onclick=()=>{setSyncCfg(null);$('#syTok').value='';$('#syStat').textContent='Отключено. История на устройстве не затронута.';renderSyncBtn();};

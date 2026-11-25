@@ -80,10 +80,10 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.locator('#lines .ln').nth(1).locator('.res').click();
   await tap('×'); await typeKeys('2');
   eq('предпросмотр', clean(await draftText()), '17 902,5 × 2= 35 805');
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="hlIn"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="hlIn"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
   eq('подсветка выключена', await draftSel(), []);
   eq('курсор вместо подсветки', await p.$$eval('.ln.draft .caret', ns => ns.length), 1);
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="hlIn"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="hlIn"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
   await tap('=');
   // цикл запрещён: правим строку 1, пытаемся вставить результат строки 2 (она зависит от 1)
   await firstLine.locator('.op').click();
@@ -138,7 +138,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('перенос после действия', clean(await draftText()).split('=')[0].trim(), '68 + 0,155');
   await tap('C');
   // знак при вставке после числа: по умолчанию «+», настройкой — «×» или замена
-  const setJoin = async v => { await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click(`#dlg .seg[data-s="join"] button[data-v="${v}"]`); await p.click('#dlg .btns .pri'); };
+  const setJoin = async v => { await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click(`#dlg .seg[data-s="join"] button[data-v="${v}"]`); await p.click('#dlg .btns .pri'); };
   await typeKeys('5'); await p.locator('#lines .ln').nth(3).locator('.d').last().click(); await tap('=');
   eq('вставка после числа: «+» по умолчанию', clean(await draftText()).split('=')[0].trim(), '5 + 68');
   await tap('C'); await setJoin('×');
@@ -208,10 +208,10 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   let [h1, h2] = await rowH();
   eq('верхний ряд как остальные', Math.abs(h1 - h2) < 2, true);
   eq('высота клавиатуры обычная ≈47%', Math.round(await p.$eval('#pad', n => n.getBoundingClientRect().height) / 780 * 100), 47);
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="kb"] button[data-v="40"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="kb"] button[data-v="40"]'); await p.click('#dlg .btns .pri');
   eq('высота клавиатуры ниже 40%', Math.round(await p.$eval('#pad', n => n.getBoundingClientRect().height) / 780 * 100), 40);
   await p.screenshot({path: OUT + '/phone-11-kb40.png'});
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
   for (let i = 0; i < 3; i++) await p.click('#dlg [data-kst="+"]');
   eq('точная высота: число', await p.textContent('#kbV'), '43%');
   eq('точная высота: кнопки без выбора', await p.$$eval('#dlg .seg[data-s="kb"] button.on', ns => ns.length), 0);
@@ -222,7 +222,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.click('#dlg .seg[data-s="kb"] button[data-v="54"]');
   eq('пресет обновил число', await p.textContent('#kbV'), '54%');
   await p.click('#dlg .btns .pri');
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="kb"] button[data-v="47"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="kb"] button[data-v="47"]'); await p.click('#dlg .btns .pri');
 
   // удержание «0»: нули повторяются; удержание «00»: ряд вариантов
   const center = async sel => { const b = await p.locator(sel).boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
@@ -269,12 +269,12 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.screenshot({path: OUT + '/phone-8-sunset.png'});
 
   // настройки: точка как разделитель
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
   await p.click('#dlg .seg[data-s="sep"] button[data-v="."]');
   await p.click('#dlg .btns .pri');
   L = (await lineTexts()).map(clean);
   eq('разделитель точка', L[0], '150000 × 0.155 = 23 250');
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="sep"] button[data-v=","]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="sep"] button[data-v=","]'); await p.click('#dlg .btns .pri');
 
   // предпросмотр результата не прячется за клавиатурой, даже если прокрутить историю вверх
   await p.$eval('#tape', n => n.scrollTop = 0);
@@ -373,18 +373,18 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.screenshot({path: OUT + '/phone-15-search.png'});
   await p.click('#qClose');
   eq('поиск закрыт — все строки', await p.$$eval('#lines .ln.hidden', ns => ns.length), 0);
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="nums"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="nums"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
   eq('номера строк', await p.$$eval('#lines .no', ns => ns.slice(0, 3).map(n => n.textContent)), ['1', '2', '3']);
   await p.screenshot({path: OUT + '/phone-16-nums.png'});
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="nums"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="nums"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
   eq('телефон: размер цифр — три варианта, как было', await p.evaluate(() => { settingsDlg(); const ok = !!document.querySelector('#dlg .seg[data-s="size"]') && !document.querySelector('#dlg .seg[data-s="pcZoom"]'); closeDlg(null); return ok; }), true);
   // подписи можно выключить
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="labels"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="labels"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
   eq('подписи выключены', await p.$$eval('#lines .lbl', ns => ns.length), 0);
   await p.locator('#lines .ln').nth(0).click({button: 'right'});
   eq('пункта «Подпись» нет', await p.$$eval('#dlg .mi[data-r="lbl"]', ns => ns.length), 0);
   await p.keyboard.press('Escape');
-  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="labels"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="labels"] button[data-v="true"]'); await p.click('#dlg .btns .pri');
   eq('подписи снова видны', await p.$$eval('#lines .lbl', ns => ns.map(n => n.textContent)), ['лист 2 мм']);
 
   // история сохраняется после перезапуска
@@ -578,14 +578,22 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.screenshot({path: OUT + '/pc-1b-basic.png'});
   await d.reload();
   eq('ПК: режим запомнился', await sciShown(), false);
-  await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]'); await d.click('#dlg .seg[data-s="wideSci"] button[data-v="true"]'); await d.click('#dlg .btns .pri');
+  await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]'); await d.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await d.click('#dlg .seg[data-s="wideSci"] button[data-v="true"]'); await d.click('#dlg .btns .pri');
   eq('ПК: с функциями из настроек', await sciShown(), true);
   eq('телефон: кнопки f(x) нет', await p.$eval('#fxBtn', n => getComputedStyle(n).display), 'none');
   await d.click('#kbBtn');
   await d.screenshot({path: OUT + '/pc-2-nokeyboard.png'});
   await d.click('#kbBtn');
-  // размер цифр на ПК (в процентах)
+  // настройки сгруппированы и свёрнуты
   await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]');
+  eq('настройки: группы', await d.$$eval('#dlg details.sg > summary', ns => ns.map(n => n.textContent)), ['Числа и расчёт', 'Внешний вид', 'Клавиатура', 'Мини-окно (ПК)', 'История и синхронизация']);
+  eq('настройки: группы свёрнуты', await d.$$eval('#dlg details.sg[open]', ns => ns.length), 0);
+  await d.click('#dlg details.sg:nth-of-type(2) > summary');
+  eq('настройки: группа раскрывается', await d.isVisible('#dlg .seg[data-s="pcZoom"]'), true);
+  eq('ПК: есть 70%', await d.$$eval('#dlg .seg[data-s="pcZoom"] button', ns => ns.map(n => n.textContent)), ['70%', '80%', '90%', '100%', '115%', '130%', '150%']);
+  await d.click('#dlg .btns .pri');
+  // размер цифр на ПК (в процентах)
+  await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]'); await d.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
   eq('ПК: настройка «Размер цифр на ПК»', [await d.isVisible('#dlg .seg[data-s="pcZoom"]'), await d.isVisible('#dlg .seg[data-s="size"]')], [true, false]);
   await d.click('#dlg .seg[data-s="pcZoom"] button[data-v="130"]');
   await d.click('#dlg [data-zst="+"]');
@@ -650,6 +658,15 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('мини: меню строки открывается', await mw.$$eval('#dlg .mi', ns => ns.length) > 3, true);
   await mw.keyboard.press('Escape');
   eq('мини: цвет полоски окна по теме', await mw.$eval('meta[name=theme-color]', n => n.content), '#161a23');
+  // выбор режимов мини-окна в настройках: без «компактного» и без полоски
+  await m.evaluate(() => { S.miniOn = ['full', 'nokb', 'line']; applyMiniOn(); });
+  eq('мини: полоска выключена — кнопки нет', await mw.isVisible('#stripBtn'), false);
+  await mw.click('#sizeBtn');
+  eq('мини: «компактное» пропущено', await mw.evaluate(() => document.body.classList.contains('m-nokb')), true);
+  await mw.click('#mFab').catch(() => {}); await mw.keyboard.press('Control+ArrowUp');
+  eq('мини: Ctrl+↑ — обратно к обычному', await mw.evaluate(() => document.body.classList.contains('m-full')), true);
+  await m.evaluate(() => { S.miniOn = ['full', 'compact', 'nokb', 'line', 'strip']; applyMiniOn(); });
+  eq('мини: полоска включена — кнопка есть', await mw.isVisible('#stripBtn'), true);
   // «одна строка»: меню открывается в компактном размере, нажатие на строку выбирает строку для Delete
   await mw.click('#sizeBtn'); await mw.click('#sizeBtn'); await mw.click('#sizeBtn');
   eq('мини: одна строка', await mw.evaluate(() => document.body.classList.contains('m-line')), true);
@@ -747,7 +764,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.5']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.6']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);

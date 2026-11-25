@@ -34,7 +34,7 @@ const sorted = a => a.slice().sort();
   // подключение через настройки: проверка токена и приватности
   const A = await device('A', false);
   eq('без подключения кнопки ⟳ нет', await A.$eval('#syncBtn', n => n.classList.contains('hidden')), true);
-  await A.click('#menuBtn'); await A.click('#dlg .mi[data-r="st"]');
+  await A.click('#menuBtn'); await A.click('#dlg .mi[data-r="st"]'); await A.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
   await A.fill('#syRepo', 'mrtekhnik/sync'); await A.fill('#syTok', 'wrong');
   await A.click('#sySave'); await A.waitForFunction(() => document.querySelector('#syStat').textContent !== 'Проверка…');
   eq('неверный токен', (await A.textContent('#syStat')).startsWith('GitHub не принял токен'), true);
