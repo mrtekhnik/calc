@@ -270,7 +270,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='4.8',APP_DATE='25.11.2026';
+const APP_VERSION='4.9',APP_DATE='25.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -1808,7 +1808,8 @@ function settingsDlg(){
     <div class="opt"><div class="lb">Знак при вставке после числа<small>Когда в строку ввода, где уже стоит число, вставляется число или результат из истории</small></div>${seg('join',[['+','+'],['×','×'],['replace','заменить']],S.join)}</div>
     </details>
     <details class="sg"><summary>Внешний вид</summary>
-    ${isPhone()?`<div class="opt"><div class="lb">Размер цифр</div>${seg('size',[['s','мелкий'],['m','средний'],['l','крупный']],S.size)}</div>`:
+    ${isPhone()?`<div class="opt"><div class="lb">Размер цифр</div>${seg('size',[['s','мелкий'],['m','средний'],['l','крупный']],S.phZoom?'':S.size)}
+      <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-pzst="-">−</button><b id="pzV">${Math.round(zoomNow()*100)}%</b><button data-pzst="+">+</button></div></div>`:
     `<div class="opt"><div class="lb">Размер цифр на ПК<small>История и строка ввода, в том числе в мини-окне</small></div>${seg('pcZoom',[[70,'70%'],[80,'80%'],[90,'90%'],[100,'100%'],[115,'115%'],[130,'130%'],[150,'150%']],S.pcZoom||100)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-zst="-">−</button><b id="zV">${S.pcZoom||100}%</b><button data-zst="+">+</button></div></div>`}
     <div class="opt"><div class="lb">Подсвечивать вводимое<small>В строке ввода выделяется число или знак, который вы сейчас набираете</small></div>${seg('hlIn',[['true','да'],['false','нет']],S.hlIn)}</div>
@@ -1820,7 +1821,7 @@ function settingsDlg(){
     <details class="sg"><summary>Клавиатура</summary>
     ${isPhone()?'':`<div class="opt"><div class="lb">Ширина клавиатуры<small>На широком экране, где клавиатура справа от истории. «авто» — как раньше</small></div>${seg('kbWd',[[0,'авто'],[25,'25%'],[30,'30%'],[35,'35%'],[40,'40%'],[50,'50%']],S.kbWd||0)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kdst="-">−</button><b id="kdV">${S.kbWd?S.kbWd+'%':'авто'}</b><button data-kdst="+">+</button></div></div>`}
-    <div class="opt"><div class="lb">${isPhone()?'Высота клавиатуры':'Высота клавиатуры в мини-окне'}<small>${isPhone()?'Доля высоты экрана':'И в узком окне, когда клавиатура под историей; доля высоты окна'}</small></div>${seg('kb',[[40,'40%'],[47,'47%'],[54,'54%'],[60,'60%']],S.kb)}
+    <div class="opt"><div class="lb">${isPhone()?'Высота клавиатуры':'Высота клавиатуры в мини-окне'}<small>${isPhone()?'Доля высоты экрана':'И в узком окне, когда клавиатура под историей; доля высоты окна'}</small></div>${seg('kb',[[40,'ниже'],[47,'обычная'],[54,'выше'],[60,'макс.']],S.kb)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kst="-">−</button><b id="kbV">${S.kb}%</b><button data-kst="+">+</button></div></div>
     <div class="opt"><div class="lb">Размер знаков на клавиатуре<small>Цифры и знаки на кнопках</small></div>${seg('keyZoom',[[80,'80%'],[90,'90%'],[100,'100%'],[115,'115%'],[130,'130%']],S.keyZoom||100)}
       <div class="step" style="margin-left:auto"><small style="opacity:.65">точно:</small><button data-kzst="-">−</button><b id="kzV">${S.keyZoom||100}%</b><button data-kzst="+">+</button></div></div>
@@ -1874,6 +1875,11 @@ function settingsDlg(){
     if(zs){ // точный размер цифр на ПК: 60–250 %, шаг 5
       S.pcZoom=Math.max(60,Math.min(250,(S.pcZoom||100)+(zs.dataset.zst==='+'?5:-5)));
       syncZoom();applySettings();return;}
+    const pz=e.target.closest('[data-pzst]');
+    if(pz){ // точный размер цифр на телефоне: 60–200 %, шаг 5
+      const cur=Math.round(zoomNow()*100);S.phZoom=Math.max(60,Math.min(200,Math.round((cur+(pz.dataset.pzst==='+'?5:-5))/5)*5));
+      $('#pzV').textContent=S.phZoom+'%';DOC.querySelectorAll('#dlg .seg[data-s="size"] button').forEach(b=>b.classList.remove('on'));
+      applySettings();return;}
     const kd=e.target.closest('[data-kdst]');
     if(kd){ // ширина клавиатуры на ПК: 20–60 % ширины окна, шаг 1 (от «авто» — с 31 %)
       const cur=S.kbWd||31;S.kbWd=Math.max(20,Math.min(60,cur+(kd.dataset.kdst==='+'?1:-1)));
@@ -1896,6 +1902,7 @@ function settingsDlg(){
     }
     S[name]=v;
     if(name==='kb'){syncKb();applySettings();return;}
+    if(name==='size'){delete S.phZoom;b.parentElement.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));const z=$('#pzV');if(z)z.textContent=Math.round(zoomNow()*100)+'%';applySettings();return;}
     if(name==='kbWd'){S.kbWd=+v||0;syncPct('kbWd','kdV',S.kbWd);applySettings();return;}
     if(name==='keyZoom'){S.keyZoom=+v;syncPct('keyZoom','kzV',S.keyZoom);applySettings();return;}
     if(name==='pcZoom'){S.pcZoom=+v;syncZoom();applySettings();return;}
@@ -1905,7 +1912,8 @@ function settingsDlg(){
 }
 // Телефон (сенсорный экран) — «мелкий / средний / крупный», как было. ПК (мышь) — своя настройка в процентах.
 const isPhone=()=>matchMedia('(pointer: coarse)').matches;
-function zoomNow(){return isPhone()?({s:.85,m:1,l:1.18}[S.size]||1):(S.pcZoom||100)/100;}
+// телефон: «мелкий / средний / крупный» или точно в процентах (phZoom; выбор варианта его сбрасывает)
+function zoomNow(){return isPhone()?(S.phZoom?S.phZoom/100:({s:.85,m:1,l:1.18}[S.size]||1)):(S.pcZoom||100)/100;}
 function applyDims(){
   for(const d of docs()){
     d.documentElement.style.setProperty('--zoom',zoomNow());

@@ -377,7 +377,16 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('номера строк', await p.$$eval('#lines .no', ns => ns.slice(0, 3).map(n => n.textContent)), ['1', '2', '3']);
   await p.screenshot({path: OUT + '/phone-16-nums.png'});
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="nums"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
-  eq('телефон: высота клавиатуры в процентах и размер знаков', await p.evaluate(() => { settingsDlg(); const r = [[...document.querySelectorAll('#dlg .seg[data-s="kb"] button')].map(b => b.textContent).join(' '), !!document.querySelector('#dlg .seg[data-s="keyZoom"]'), !!document.querySelector('#dlg .seg[data-s="kbWd"]')]; closeDlg(null); return r; }), ['40% 47% 54% 60%', true, false]);
+  eq('телефон: высота клавиатуры в процентах и размер знаков', await p.evaluate(() => { settingsDlg(); const r = [[...document.querySelectorAll('#dlg .seg[data-s="kb"] button')].map(b => b.textContent).join(' '), !!document.querySelector('#dlg .seg[data-s="keyZoom"]'), !!document.querySelector('#dlg .seg[data-s="kbWd"]')]; closeDlg(null); return r; }), ['ниже обычная выше макс.', true, false]);
+  await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
+  const zoomP = () => p.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--zoom').trim());
+  eq('телефон: размер цифр — точно, начало от выбранного', await p.textContent('#pzV'), '100%');
+  await p.click('#dlg [data-pzst="+"]');
+  eq('телефон: размер цифр 105 %', [await p.textContent('#pzV'), await zoomP(), await p.$$eval('#dlg .seg[data-s="size"] button.on', ns => ns.length)], ['105%', '1.05', 0]);
+  await p.click('#dlg .seg[data-s="size"] button[data-v="l"]');
+  eq('телефон: «крупный» сбрасывает точную подстройку', [await p.textContent('#pzV'), await zoomP()], ['118%', '1.18']);
+  await p.click('#dlg .seg[data-s="size"] button[data-v="m"]');
+  await p.click('#dlg .btns .pri');
   eq('телефон: размер цифр — три варианта, как было', await p.evaluate(() => { settingsDlg(); const ok = !!document.querySelector('#dlg .seg[data-s="size"]') && !document.querySelector('#dlg .seg[data-s="pcZoom"]'); closeDlg(null); return ok; }), true);
   // подписи можно выключить
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="labels"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
@@ -782,7 +791,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.8']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.9']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
