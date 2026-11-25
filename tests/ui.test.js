@@ -592,6 +592,18 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('настройки: группа раскрывается', await d.isVisible('#dlg .seg[data-s="pcZoom"]'), true);
   eq('ПК: есть 70%', await d.$$eval('#dlg .seg[data-s="pcZoom"] button', ns => ns.map(n => n.textContent)), ['70%', '80%', '90%', '100%', '115%', '130%', '150%']);
   await d.click('#dlg .btns .pri');
+  // высота клавиатуры на широком экране
+  const padPart = () => d.evaluate(() => Math.round(document.querySelector('#pad').getBoundingClientRect().height / document.querySelector('main').getBoundingClientRect().height * 100));
+  eq('ПК: клавиатура по умолчанию во всю высоту', await padPart(), 100);
+  await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]'); await d.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
+  eq('ПК: подписи настроек высоты', await d.$$eval('#dlg .opt .lb', ns => ns.map(n => n.firstChild.textContent).filter(x => x.startsWith('Высота'))), ['Высота клавиатуры на широком экране', 'Высота клавиатуры в мини-окне']);
+  await d.click('#dlg .seg[data-s="kbW"] button[data-v="70"]');
+  eq('ПК: клавиатура 70 %', await padPart(), 70);
+  await d.click('#dlg [data-kwst="-"]');
+  eq('ПК: клавиатура 65 % (точно)', [await d.textContent('#kwV'), await padPart()], ['65%', 65]);
+  await d.click('#dlg .seg[data-s="kbW"] button[data-v="100"]');
+  eq('ПК: снова во всю высоту', await padPart(), 100);
+  await d.click('#dlg .btns .pri');
   // размер цифр на ПК (в процентах)
   await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]'); await d.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
   eq('ПК: настройка «Размер цифр на ПК»', [await d.isVisible('#dlg .seg[data-s="pcZoom"]'), await d.isVisible('#dlg .seg[data-s="size"]')], [true, false]);
@@ -764,7 +776,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.6']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.7']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
