@@ -377,6 +377,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('номера строк', await p.$$eval('#lines .no', ns => ns.slice(0, 3).map(n => n.textContent)), ['1', '2', '3']);
   await p.screenshot({path: OUT + '/phone-16-nums.png'});
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="nums"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+  eq('телефон: высота клавиатуры в процентах и размер знаков', await p.evaluate(() => { settingsDlg(); const r = [[...document.querySelectorAll('#dlg .seg[data-s="kb"] button')].map(b => b.textContent).join(' '), !!document.querySelector('#dlg .seg[data-s="keyZoom"]'), !!document.querySelector('#dlg .seg[data-s="kbWd"]')]; closeDlg(null); return r; }), ['40% 47% 54% 60%', true, false]);
   eq('телефон: размер цифр — три варианта, как было', await p.evaluate(() => { settingsDlg(); const ok = !!document.querySelector('#dlg .seg[data-s="size"]') && !document.querySelector('#dlg .seg[data-s="pcZoom"]'); closeDlg(null); return ok; }), true);
   // подписи можно выключить
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true)); await p.click('#dlg .seg[data-s="labels"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
@@ -592,17 +593,22 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('настройки: группа раскрывается', await d.isVisible('#dlg .seg[data-s="pcZoom"]'), true);
   eq('ПК: есть 70%', await d.$$eval('#dlg .seg[data-s="pcZoom"] button', ns => ns.map(n => n.textContent)), ['70%', '80%', '90%', '100%', '115%', '130%', '150%']);
   await d.click('#dlg .btns .pri');
-  // высота клавиатуры на широком экране
-  const padPart = () => d.evaluate(() => Math.round(document.querySelector('#pad').getBoundingClientRect().height / document.querySelector('main').getBoundingClientRect().height * 100));
-  eq('ПК: клавиатура по умолчанию во всю высоту', await padPart(), 100);
+  // ширина клавиатуры на ПК и размер знаков на кнопках
+  const padW = () => d.evaluate(() => Math.round(document.querySelector('#pad').getBoundingClientRect().width / innerWidth * 100));
+  const keyFs = () => d.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#gNum [data-k="7"]')).fontSize));
+  const w0 = await padW(), f0 = await keyFs();
   await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]'); await d.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
-  eq('ПК: подписи настроек высоты', await d.$$eval('#dlg .opt .lb', ns => ns.map(n => n.firstChild.textContent).filter(x => x.startsWith('Высота'))), ['Высота клавиатуры на широком экране', 'Высота клавиатуры в мини-окне']);
-  await d.click('#dlg .seg[data-s="kbW"] button[data-v="70"]');
-  eq('ПК: клавиатура 70 %', await padPart(), 70);
-  await d.click('#dlg [data-kwst="-"]');
-  eq('ПК: клавиатура 65 % (точно)', [await d.textContent('#kwV'), await padPart()], ['65%', 65]);
-  await d.click('#dlg .seg[data-s="kbW"] button[data-v="100"]');
-  eq('ПК: снова во всю высоту', await padPart(), 100);
+  eq('ПК: настройки клавиатуры', await d.$$eval('#dlg .opt .lb', ns => ns.map(n => n.firstChild.textContent).filter(x => /клавиатур/i.test(x))),
+    ['Ширина клавиатуры', 'Высота клавиатуры в мини-окне', 'Размер знаков на клавиатуре', 'Клавиатура на широком экране']);
+  await d.click('#dlg .seg[data-s="kbWd"] button[data-v="40"]');
+  eq('ПК: ширина клавиатуры 40 %', await padW(), 40);
+  await d.click('#dlg [data-kdst="+"]');
+  eq('ПК: ширина 41 % (точно)', [await d.textContent('#kdV'), await padW()], ['41%', 41]);
+  await d.click('#dlg .seg[data-s="kbWd"] button[data-v="0"]');
+  eq('ПК: ширина «авто» — как раньше', [await d.textContent('#kdV'), await padW()], ['авто', w0]);
+  await d.click('#dlg .seg[data-s="keyZoom"] button[data-v="130"]');
+  eq('ПК: знаки на кнопках 130 %', Math.round(await keyFs() / f0 * 100), 130);
+  await d.click('#dlg .seg[data-s="keyZoom"] button[data-v="100"]');
   await d.click('#dlg .btns .pri');
   // размер цифр на ПК (в процентах)
   await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]'); await d.evaluate(() => DOC.querySelectorAll('#dlg details').forEach(x => x.open = true));
@@ -776,7 +782,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.7']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.8']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
