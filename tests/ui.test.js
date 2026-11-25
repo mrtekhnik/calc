@@ -335,7 +335,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('подпись показана', await p.locator('#lines .ln').nth(0).locator('.lbl').textContent(), 'лист 2 мм');
   await swipe(); await tap('pick');
   await p.fill('#pkIn', 'лист');
-  eq('выбор по подписи: найдено', await p.$$eval('#dlg .pk', ns => ns.length), 1);
+  eq('выбор по подписи: найдено', await p.$$eval('#dlg .pk[data-r^="p:"]', ns => ns.length), 1);
   await p.click('#dlg .pk');
   eq('вставлено по подписи', (await p.$$eval('.ln.draft .ref', ns => ns.map(n => n.textContent))).map(clean), ['23 250']);
   await tap('C'); await swipe();
@@ -458,6 +458,15 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК Delete на последней строке: возврат в строку ввода', await d.$$eval('#lines .ln.act', ns => ns.length), 0);
   await d.keyboard.press('Control+z');
   eq('ПК Ctrl+Z вернул строку', (await dl()).length, n0);
+  // заметка прямо с клавиатуры: буквы → Enter (подписи с таким текстом нет)
+  await d.keyboard.press('Escape');
+  await d.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'П', bubbles: true})));
+  await d.keyboard.insertText('озвонить снабженцу');
+  eq('ПК буквы: предложено записать заметкой', (await d.textContent('#pkList')).includes('Записать заметкой'), true);
+  await d.keyboard.press('Enter');
+  eq('ПК буквы → Enter: заметка записана', await d.$$eval('#lines .note', ns => ns.map(n => n.textContent)), ['Позвонить снабженцу']);
+  await d.click('#undoBtn');
+  eq('ПК заметка отменяется', await d.$$eval('#lines .note', ns => ns.length), 0);
   // заметка: F2, Ctrl+Enter
   await d.keyboard.press('Escape');
   await d.keyboard.press('F2'); await d.keyboard.type('Заказ 358: 2 листа'); await d.keyboard.press('Control+Enter');
@@ -588,6 +597,24 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('мини: меню строки открывается', await mw.$$eval('#dlg .mi', ns => ns.length) > 3, true);
   await mw.keyboard.press('Escape');
   eq('мини: цвет полоски окна по теме', await mw.$eval('meta[name=theme-color]', n => n.content), '#161a23');
+  // «одна строка»: меню открывается в компактном размере, нажатие на строку выбирает строку для Delete
+  await mw.click('#sizeBtn'); await mw.click('#sizeBtn'); await mw.click('#sizeBtn');
+  eq('мини: одна строка', await mw.evaluate(() => document.body.classList.contains('m-line')), true);
+  await mw.keyboard.press('ArrowUp');
+  await mw.locator('#lines .ln.act').click({button: 'right', position: {x: 200, y: 10}, force: true});
+  eq('мини: меню в «одной строке» — компактный размер', [await mw.evaluate(() => document.body.classList.contains('m-compact')), await mw.isVisible('#dlg .mi')], [true, true]);
+  await mw.keyboard.press('Escape');
+  await mw.waitForTimeout(50);
+  eq('мини: после меню снова «одна строка»', await mw.evaluate(() => document.body.classList.contains('m-line') && !document.body.classList.contains('m-compact')), true);
+  const nLine = await m.evaluate(() => vis().length);
+  await mw.keyboard.press('Escape'); await mw.keyboard.press('ArrowUp');
+  await mw.locator('#lines .ln.act .d').first().click({force: true});
+  eq('мини: нажатие на строку не выделяет число', await m.evaluate(() => [ed.hl, !!ed.sel]), [false, false]);
+  await mw.keyboard.press('Delete');
+  eq('мини: Delete после нажатия мышью удаляет строку', await m.evaluate(() => vis().length), nLine - 1);
+  await mw.keyboard.press('Control+z');
+  await mw.click('#mFab');
+  eq('мини: снова обычный режим', await mw.evaluate(() => document.body.classList.contains('m-full')), true);
   // свернуть в полоску и развернуть
   await mw.click('#stripBtn');
   eq('мини: полоска', [await mw.evaluate(() => document.body.classList.contains('m-strip')), await mw.isVisible('#strip'), await mw.isVisible('#pad')], [true, true, false]);
@@ -667,7 +694,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.2']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.3']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);

@@ -260,7 +260,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='4.2',APP_DATE='25.11.2026';
+const APP_VERSION='4.3',APP_DATE='25.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -692,9 +692,18 @@ function setProp(id,prop,val){
   l.upd=now();changed();
 }
 // Заметка — строка истории с текстом вместо расчёта (быстрый блокнот). Синхронизируется как обычная строка.
-async function noteDlg(id){
+function addNote(txt){
+  txt=String(txt||'').replace(/\s+$/,'');if(!txt)return;
+  leaveEdit();
+  const L=vis();
+  const n={id:newId(),pos:nextPos(L),expr:[],note:txt.slice(0,2000),upd:now(),at:now(),del:0};
+  if(pendingBrk&&L.length)n.brk=1;pendingBrk=false;
+  lines.push(n);pushUndo([{id:n.id,before:null}],'add');changed();scrollBottom();
+  toast('Заметка добавлена');
+}
+async function noteDlg(id,start){
   const l=id?byId(id):null;
-  const p=openDlg(`<h2>${l?'Изменить заметку':'Заметка'}</h2><textarea class="inp" id="nTxt" maxlength="2000" placeholder="Текст: номера, размеры, что угодно">${esc(l?l.note:'')}</textarea>
+  const p=openDlg(`<h2>${l?'Изменить заметку':'Заметка'}</h2><textarea class="inp" id="nTxt" maxlength="2000" placeholder="Текст: номера, размеры, что угодно">${esc(l?l.note:(start||''))}</textarea>
     <div class="foot" style="padding:0 2px 6px">Ctrl+Enter — сохранить. Пусто — заметка будет удалена.</div>
     <div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Сохранить</button></div>`);
   const t=$('#nTxt');t.focus();t.setSelectionRange(t.value.length,t.value.length);
@@ -707,11 +716,7 @@ async function noteDlg(id){
     if(txt===l.note)return;
     pushUndo([{id:l.id,before:clone(l)}],'note');l.note=txt;l.upd=now();l.mod=now();changed();return;
   }
-  if(!txt)return;
-  const L=vis();
-  const n={id:newId(),pos:nextPos(L),expr:[],note:txt,upd:now(),at:now(),del:0};
-  if(pendingBrk&&L.length)n.brk=1;pendingBrk=false;
-  lines.push(n);pushUndo([{id:n.id,before:null}],'add');changed();scrollBottom();
+  addNote(txt);
 }
 function insertAbove(id){
   const L=vis(),i=L.findIndex(l=>l.id===id);if(i<0)return;
@@ -956,12 +961,14 @@ $('#tape').addEventListener('click',e=>{
   const id=ln.dataset.id;
   if(id!=='draft'&&(byId(id)||{}).note!==undefined){noteDlg(id);return;}
   const res=e.target.closest('.res');
+  if(res&&pip&&S.miniMode==='line'&&id!=='draft')return;
   if(res){insertRef(res.dataset.r);return;}
   const at=e.target.closest('[data-i]');
   if(!at){activate(id);return;}
   const i=+at.dataset.i;
   const atoms=id==='draft'?draft:(byId(id)||{expr:[]}).expr;
   const wasActive=ed.id===id;
+  if(pip&&S.miniMode==='line'&&id!=='draft')return; // в «одной строке» строка уже выбрана: Enter — в ввод, Delete — удалить, цифры — правка
   if(at.classList.contains('d')){
     const run=C.runAt(atoms,i);
     const inRun=wasActive&&!ed.sel&&ed.cur>=run[0]&&ed.cur<=run[1];
@@ -1033,10 +1040,11 @@ async function lineMenu(id,refAt,numAt){
   const pieceAct=k=>{if(k==='seek'){goalSeek(id,numAt);return true;}if(k==='pc'){copyText(pv,'Скопировано: '+pv);return true;}if(k==='pd'){if(ed.id===id)leaveEdit();toDraft(piece);return true;}return false;};
   if(id==='draft'){
     const many=C.refsOf(draft).length>1?[{k:'unA',l:'Убрать все ссылки в строке',more:1}]:[];
-    const k=await choose('Строка ввода',[...one,{k:'paste',l:'Вставить из буфера'},{k:'copy',l:'Копировать результат'},{k:'clr',l:'Очистить строку'},
+    const k=await choose('Строка ввода',[...one,{k:'paste',l:'Вставить из буфера'},{k:'copy',l:'Копировать результат'},{k:'note',l:'Заметка'},{k:'clr',l:'Очистить строку'},
       ...(draft.length?[{k:'rnd',l:'Округлить результат…',more:1}]:[]),...many]);
     if(pieceAct(k))return;
     if(k==='rnd'){roundDlg('draft');return;}
+    if(k==='note'){noteDlg(null);return;}
     if(k==='un1')unlinkLine('draft',refAt);
     else if(k==='unA')unlinkLine('draft',null);
     else if(k==='paste')pasteFromClipboard();
@@ -1264,7 +1272,7 @@ function onKey(e){
   else if(e.code==='NumpadDecimal')k='.';
   else if(KEYMAP[e.key])k=KEYMAP[e.key];
   else if(e.key==='@'){e.preventDefault();pickByLabel('');return;}
-  else if(S.labels&&e.key.length===1&&/\p{L}/u.test(e.key)){e.preventDefault();pickByLabel(e.key);return;} // буквы — поиск по подписи
+  else if(e.key.length===1&&/\p{L}/u.test(e.key)){e.preventDefault();pickByLabel(e.key);return;} // буквы — подпись или заметка
   else if(e.key==='Enter'||e.key==='='){
     if(e.shiftKey&&ed.id!=='draft'){const id=ed.id;e.preventDefault();activate('draft');insertRef(id);return;}
     // Enter на строке истории (выбрана, не правилась, число не выделено) — её результат в строку ввода
@@ -1317,9 +1325,9 @@ document.addEventListener('keydown',onKey);
 
 /* ---------- окна ---------- */
 let dlgResolve=null;
-function openDlg(html){const b=$('#dlg .box');b.innerHTML=html;$('#dlg').classList.remove('hidden');b.scrollTop=0;return new Promise(r=>dlgResolve=r);}
+function openDlg(html){dlgGrow();const b=$('#dlg .box');b.innerHTML=html;$('#dlg').classList.remove('hidden');b.scrollTop=0;return new Promise(r=>dlgResolve=r);}
 function closeDlg(v){const f=DOC.activeElement;if(f&&f.closest&&f.closest('#dlg'))f.blur(); // фокус из окна — обратно калькулятору
-  $('#dlg').classList.add('hidden');const r=dlgResolve;dlgResolve=null;if(r)r(v);}
+  $('#dlg').classList.add('hidden');const r=dlgResolve;dlgResolve=null;if(r)r(v);dlgShrink();}
 $('#dlg').addEventListener('click',e=>{
   if(e.target.id==='dlg'){closeDlg(null);return;}
   const b=e.target.closest('[data-r]');if(b&&b.closest('#dlg .box')&&!b.closest('.live'))closeDlg(b.dataset.r);
@@ -1346,20 +1354,26 @@ function promptBox(title,val,ph,note){
   return p.then(r=>r==='ok'?$('#pIn').value:null);
 }
 // Вставить значение строки по подписи (или закреплённой строки)
+// Начали печатать буквы (ПК): значение строки по подписи — или тот же текст сразу записать заметкой.
+// Enter: есть совпадение по подписи — вставить его; нет — сохранить набранное как заметку.
 async function pickByLabel(start){
-  const L=vis().filter(l=>(S.labels&&l.label)||l.pin).reverse();
-  if(!L.length){toast(S.labels?'Нет строк с подписями. Долгое нажатие на строку → «Ещё» → «Подпись…»':'Подписи выключены в настройках');return;}
+  const L=vis().filter(l=>l.note===undefined&&((S.labels&&l.label)||l.pin)).reverse();
+  const found=q=>{const n=norm(q||'');return L.filter(l=>!n||norm(l.label||'').includes(n)||norm(C.exprText(l.expr,refVal,optsF())).includes(n));};
   const list=q=>{
-    const n=norm(q||'');
-    const F=L.filter(l=>!n||norm(l.label||'').includes(n)||norm(C.exprText(l.expr,refVal,optsF())).includes(n));
-    return F.map(l=>{const v=refVal(l.id);return `<button class="pk" data-r="p:${esc(l.id)}"><span>${esc(l.label||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('')||'<div class="foot">Ничего не найдено</div>';
+    const F=found(q);
+    const h=F.map(l=>{const v=refVal(l.id);return `<button class="pk" data-r="p:${esc(l.id)}"><span>${esc(l.label||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('');
+    const nt=(q||'').trim()?`<button class="pk" data-r="n:"><span>＋ Записать заметкой: «${esc(q.trim().slice(0,60))}»</span></button>`:'';
+    return h+nt||`<div class="foot">${L.length?'Начните вводить подпись или текст заметки':'Введите текст — он запишется заметкой. Строки с подписями появятся здесь.'}</div>`;
   };
-  const p=openDlg(`<h2>Вставить по подписи</h2><input class="inp" id="pkIn" placeholder="Начните вводить подпись" value="${esc(start||'')}" autocomplete="off"><div id="pkList">${list(start)}</div><div class="btns"><button data-r="no">Отмена</button></div>`);
+  const p=openDlg(`<h2>${L.length?'Подпись или заметка':'Заметка'}</h2><input class="inp" id="pkIn" placeholder="${L.length?'Подпись строки или текст заметки':'Текст заметки'}" value="${esc(start||'')}" autocomplete="off"><div id="pkList">${list(start)}</div>
+    <div class="foot" style="padding:2px">Enter — ${L.length?'вставить найденное значение, а если ничего не найдено — записать заметку':'записать заметку'}.</div>
+    <div class="btns"><button data-r="no">Отмена</button></div>`);
   const i=$('#pkIn');i.focus();i.setSelectionRange(i.value.length,i.value.length); // курсор после первой буквы
   i.addEventListener('input',()=>{$('#pkList').innerHTML=list(i.value);});
   i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const f=$('#pkList .pk');if(f)closeDlg(f.dataset.r);}});
   const r=await p;
   if(r&&r.startsWith('p:'))insertRef(r.slice(2));
+  else if(r==='n:')addNote($('#pkIn').value);
 }
 let toastT=0;
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.remove('hidden');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.add('hidden'),2300);}
@@ -1376,16 +1390,29 @@ const miniOk=()=>!!pipHost();
 // Режимы мини-окна: размер выставляется кнопкой точно (мышью Chrome всё равно даёт тянуть границы)
 const MINI={full:{w:360,h:600,n:'обычное'},compact:{w:290,h:430,n:'компактное'},nokb:{w:340,h:220,n:'без клавиатуры'},line:{w:380,h:60,n:'одна строка'},strip:{w:260,h:40,n:'полоска'}};
 const MINI_ORDER=['full','compact','nokb','line'];
+function miniLook(m,resize){ // показать режим в мини-окне (без сохранения выбора)
+  for(const k of [...MINI_ORDER,'strip'])pip.document.body.classList.toggle('m-'+k,k===m);
+  if(resize){try{pip.resizeTo(MINI[m].w+(pip.outerWidth-pip.innerWidth),MINI[m].h+(pip.outerHeight-pip.innerHeight));}catch(e){}}
+}
 function setMiniMode(m,resize){
   if(!MINI[m])m='full';
   S.miniMode=m;scheduleSave();
   if(!pip)return;
-  for(const k of [...MINI_ORDER,'strip'])pip.document.body.classList.toggle('m-'+k,k===m);
+  dlgSmall=null;miniLook(m,resize);
   renderStrip();
-  if(resize){
-    try{pip.resizeTo(MINI[m].w+(pip.outerWidth-pip.innerWidth),MINI[m].h+(pip.outerHeight-pip.innerHeight));}catch(e){}
-  }
   render();scrollBottom();
+}
+// Меню и окна не помещаются в «одну строку», «полоску» и «без клавиатуры» — на время окна мини-окно становится компактным
+let dlgSmall=null;
+function dlgGrow(){
+  if(!pip||dlgSmall||!['line','strip','nokb'].includes(S.miniMode))return;
+  dlgSmall=S.miniMode;miniLook('compact',true);
+}
+function dlgShrink(){
+  setTimeout(()=>{ // следующее окно может открыться сразу (меню → подтверждение) — тогда не сжимать
+    if(!pip||!dlgSmall||!$('#dlg').classList.contains('hidden'))return;
+    const m=dlgSmall;dlgSmall=null;miniLook(m,true);render();scrollBottom();
+  },0);
 }
 // Свернуть мини-окно в полоску (не закрывая) и развернуть обратно в прежний режим
 function toggleStrip(){
