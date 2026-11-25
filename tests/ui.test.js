@@ -188,11 +188,30 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.locator('#lines .ln').nth(2).locator('.eqs').click();
   const nAt = await p.evaluate(() => ed.atoms.length);
   for (let i = 0; i < nAt; i++) await tap('back');
-  eq('⌫: строка пустая, подсказка', (await p.textContent('#lines .ln.act')).includes('⌫ ещё раз удалит'), true);
+  eq('⌫: строка пустая, подсказка', (await p.textContent('#lines .ln.act')).includes('будет удалена'), true);
   await tap('back');
   eq('⌫ на пустой строке — удалена', (await lineTexts()).length, nB - 1);
   await p.click('#tUndo');
   eq('«Вернуть» — строка с исходным содержимым', [(await lineTexts()).length, clean((await lineTexts())[2])], [nB, txtB]);
+  // удержание ⌫ на строке истории — удалить; в строке ввода — очистить
+  const backXY = async () => { const b = await p.locator('#topRow [data-k="back"]').boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+  await p.waitForTimeout(450);
+  await p.locator('#lines .ln').nth(2).locator('.eqs').click();
+  let [bx, by] = await backXY();
+  await p.mouse.move(bx, by); await p.mouse.down(); await p.waitForTimeout(800); await p.mouse.up();
+  eq('удержание ⌫: строка удалена', (await lineTexts()).length, nB - 1);
+  await p.click('#tUndo');
+  eq('удержание ⌫: «Вернуть»', [(await lineTexts()).length, clean((await lineTexts())[2])], [nB, txtB]);
+  await typeKeys('123');
+  await p.mouse.move(bx, by); await p.mouse.down(); await p.waitForTimeout(800); await p.mouse.up();
+  eq('удержание ⌫ в строке ввода — очищена', clean(await draftText()), '0');
+  eq('удержание ⌫ в строке ввода — история цела', (await lineTexts()).length, nB);
+  // метла при правке строки истории не стирает её
+  await p.waitForTimeout(450);
+  await p.locator('#lines .ln').nth(2).locator('.d').last().click(); await tap('9'); await tap('C');
+  eq('метла: правка закончена, строка не стёрта', [await p.$$eval('#lines .ln.act', ns => ns.length), clean((await lineTexts())[2]).includes('5,59')], [0, true]);
+  await p.click('#undoBtn');
+  eq('метла: ↶ отменил правку', clean((await lineTexts())[2]), txtB);
 
   // вставка строки выше
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
@@ -508,7 +527,9 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   const nAtPC = await d.evaluate(() => ed.atoms.length);
   for (let i = 0; i < nAtPC; i++) await d.keyboard.press('Backspace');
   await d.keyboard.press('Escape');
-  eq('ПК пустая строка вернулась', (await dl()).length, n0);
+  eq('ПК стёртая строка удалена при выходе', (await dl()).length, n0 - 1);
+  await d.click('#tUndo');
+  eq('ПК «Вернуть» — строка как была', (await dl()).length, n0);
   // заметка, начинающаяся с цифр: #
   await d.keyboard.press('#');
   eq('ПК # открыл заметку', await d.isVisible('#nTxt'), true);
@@ -803,7 +824,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-5.0']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-5.1']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);

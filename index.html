@@ -270,7 +270,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='5.0',APP_DATE='25.11.2026';
+const APP_VERSION='5.1',APP_DATE='25.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -424,18 +424,22 @@ function setEd(st){
 function leaveEdit(){
   if(ed.id==='draft')return;
   const l=lines.find(x=>x.id===ed.id);
+  let gone=null;
   if(l&&!l.del&&!l.expr.length&&l.note===undefined){
     if(l.tmp)lines.splice(lines.indexOf(l),1);
-    else{ // стёрли всё — строка не удаляется, а возвращается как была (удалить — только явно)
-      const top=undoSt[undoSt.length-1];
-      if(top&&top.kind==='edit'&&top.session===session&&top.items[0].id===l.id&&top.items[0].before){
-        Object.assign(l,clone(top.items[0].before));undoSt.pop();
-        toast('Пустая строка не сохраняется — строка возвращена');
-      }else{l.del=1;l.upd=now();}
-    }
+    else{gone=l;restoreSessionOriginal(l);} // стёрли всё — строка удаляется (в корзину, с «Вернуть» — к исходному виду)
   }
   session++;
   ed={id:'draft',atoms:draft,cur:draft.length,sel:null};
+  if(gone)deleteLine(gone.id);
+}
+// Вернуть строке вид до начала текущей правки (чтобы «Вернуть» после удаления восстановило её целиком)
+function restoreSessionOriginal(l){
+  const top=undoSt[undoSt.length-1];
+  if(top&&top.kind==='edit'&&top.session===session&&top.items[0].id===l.id&&top.items[0].before){
+    for(const k of Object.keys(l))if(k!=='id')delete l[k];
+    Object.assign(l,clone(top.items[0].before));undoSt.pop();
+  }
 }
 function activate(id,cur,sel,hl){
   if(id!==ed.id){
@@ -473,7 +477,11 @@ function key(k){
     }
     leaveEdit();changed();scrollBottom();return;
   }
-  if(k==='C'){if(ed.atoms.length)setEd({atoms:[],cur:0,sel:null});return;}
+  if(k==='C'){ // метла — только строка ввода; строку истории не трогает (правка заканчивается)
+    if(ed.id!=='draft'){leaveEdit();changed();}
+    if(draft.length){draft=[];ed={id:'draft',atoms:draft,cur:0,sel:null};justCommitted=null;changed();}
+    return;
+  }
   if(k==='back'){
     // строка истории уже пустая — ⌫ ещё раз удаляет её (в корзину, с «Вернуть»)
     if(ed.id!=='draft'&&!ed.atoms.length){deleteEmptyActive();return;}
@@ -537,12 +545,10 @@ function toDraft(piece){
   setEd(st);scrollBottom();
 }
 const pieceText=piece=>piece.map(a=>a==='.'?S.sep:a).join('');
-function deleteEmptyActive(){
+function deleteEmptyActive(){ // также: удержание ⌫ на строке истории
   const l=byId(ed.id);if(!l)return;
   if(l.tmp){leaveEdit();changed();return;}
-  // вернуть строке исходное содержимое (до стирания), чтобы «Вернуть» восстановило её целиком
-  const top=undoSt[undoSt.length-1];
-  if(top&&top.kind==='edit'&&top.session===session&&top.items[0].id===l.id&&top.items[0].before){Object.assign(l,clone(top.items[0].before));undoSt.pop();}
+  restoreSessionOriginal(l);
   session++;ed={id:'draft',atoms:draft,cur:draft.length,sel:null};
   deleteLine(l.id);
 }
@@ -840,7 +846,7 @@ function lineHTML(l,refd,no){
   if(S.showMod&&l.mod&&l.mod-(l.at||0)>60000)meta.push('изм. '+whenText(l.mod));
   let h=(S.nums?`<span class="no">${no}</span>`:'')+(meta.length?`<span class="lbl">${meta.join(' · ')}</span>`:'');
   h+=exprHTML(expr,act,act?ed.sel:null,act?ed.cur:0,act&&ed.hl);
-  if(!expr.length)h+=`<span class="mut">${act?'пустая строка — ⌫ ещё раз удалит её':'пустая строка'}</span>`;
+  if(!expr.length)h+=`<span class="mut">${act?'пустая строка — будет удалена':'пустая строка'}</span>`;
   if(r){
     if(r.err)h+=` <span class="eqs">=</span> <span class="err">${esc(r.err)}</span>`;
     else h+=` <span class="eqs">=</span> <span class="res${refd?' lk':''}" data-r="${esc(l.id)}">${fmtV(r.v)}</span>`;
@@ -1291,10 +1297,26 @@ const holdUp=()=>{
 $('#grids').addEventListener('pointerup',holdUp);
 $('#grids').addEventListener('pointercancel',()=>{holdEnd();hold.used=false;});
 $('#pad').addEventListener('contextmenu',e=>e.preventDefault());
+/* удержание ⌫: на строке истории — удалить строку (с «Вернуть»), в строке ввода — очистить её */
+const bHold={t:0,used:false,x:0,y:0};
+$('#topRow').addEventListener('pointerdown',e=>{
+  const b=e.target.closest('[data-k="back"]');bHold.used=false;if(!b)return;
+  bHold.x=e.clientX;bHold.y=e.clientY;
+  try{b.setPointerCapture(e.pointerId);}catch(_){}
+  clearTimeout(bHold.t);
+  bHold.t=setTimeout(()=>{
+    bHold.t=0;bHold.used=true;vib();
+    if(ed.id!=='draft')deleteEmptyActive();
+    else if(draft.length){draft=[];ed={id:'draft',atoms:draft,cur:0,sel:null};justCommitted=null;changed();}
+  },600);
+});
+$('#topRow').addEventListener('pointermove',e=>{if(bHold.t&&Math.hypot(e.clientX-bHold.x,e.clientY-bHold.y)>12){clearTimeout(bHold.t);bHold.t=0;}});
+const bHoldEnd=()=>{if(bHold.t){clearTimeout(bHold.t);bHold.t=0;}if(bHold.used)setTimeout(()=>bHold.used=false,60);};
+$('#topRow').addEventListener('pointerup',bHoldEnd);$('#topRow').addEventListener('pointercancel',bHoldEnd);
 $('#pad').addEventListener('mousedown',e=>e.preventDefault()); // кнопки не забирают фокус (Enter на ПК не нажмёт кнопку)
 $('#pad').addEventListener('click',e=>{
   lastTap=null; // нажали кнопку — следующее нажатие в ленте уже не «второе»
-  const b=e.target.closest('[data-k]');if(!b||swiped||hold.used)return;
+  const b=e.target.closest('[data-k]');if(!b||swiped||hold.used||bHold.used)return;
   const k=b.dataset.k;
   if(k==='tog')togglePad();
   else if(k==='123')setPage(false);
