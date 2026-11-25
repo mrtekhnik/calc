@@ -105,6 +105,14 @@ const sorted = a => a.slice().sort();
   await sync(B); await sync(A);
   eq('5: удаление шаблона дошло до A', await A.evaluate(() => S.tpl.length), 0);
 
+  // заметка синхронизируется
+  await A.keyboard.press('F2'); await A.keyboard.type('Позвонить снабженцу'); await A.keyboard.press('Control+Enter');
+  await sync(A); await sync(B);
+  eq('заметка дошла до B', await B.$$eval('#lines .note', ns => ns.map(n => n.textContent)), ['Позвонить снабженцу']);
+  await B.locator('#lines .note').click({button: 'right'}); await B.click('#dlg .mi.dng');
+  await sync(B); await sync(A);
+  eq('удаление заметки дошло до A', await A.$$eval('#lines .note', ns => ns.length), 0);
+
   // 6. повторная синхронизация без изменений
   eq('6: без изменений', await sync(A), 'Всё уже синхронизировано');
   eq('6: без изменений B', await sync(B), 'Всё уже синхронизировано');
@@ -150,12 +158,12 @@ const sorted = a => a.slice().sort();
   // обычная резервная копия: создать и восстановить с совпадениями «добавить копией»
   const [dl] = await Promise.all([A.waitForEvent('download'), (async () => { await A.click('#menuBtn'); await A.click('#moreBtn'); await A.click('#dlg .mi[data-r="bk"]'); })()]);
   await dl.saveAs(TMP + '/backup.json');
-  const nA = (await exprs(A)).length;
+  const nA = (await exprs(A)).length, nAll = await A.evaluate(() => lines.filter(l => !l.tmp).length); // в копии — и корзина
   await A.click('#menuBtn'); await A.click('#moreBtn');
   const [fc3] = await Promise.all([A.waitForEvent('filechooser'), A.click('#dlg .mi[data-r="rs"]')]);
   await fc3.setFiles(TMP + '/backup.json');
   await A.waitForSelector('#dlg .mi[data-r="copy"]');
-  eq('8: совпадения найдены', (await A.textContent('#dlg .txt')).includes(`Совпадают с уже имеющимися: ${nA}`), true);
+  eq('8: совпадения найдены', (await A.textContent('#dlg .txt')).includes(`Совпадают с уже имеющимися: ${nAll}`), true);
   await A.click('#dlg .mi[data-r="skip"]');
   eq('8: «пропустить» ничего не задвоил', (await exprs(A)).length, nA);
 

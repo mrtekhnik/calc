@@ -38,6 +38,9 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .lbl{display:block;font-size:.5em;line-height:1.3;color:var(--muted);margin-top:4px}
 .no{float:left;font-size:.5em;color:var(--muted);margin-top:.75em;min-width:1.6em;text-align:left}
 .ln.found{box-shadow:inset 3px 0 0 var(--acc)}
+.note{display:block;text-align:left;font-size:.68em;line-height:1.4;color:var(--ink);opacity:.9;white-space:pre-wrap;padding:2px 0;border-left:3px solid var(--acc);padding-left:8px;cursor:pointer}
+.mi.hi{color:var(--acc);font-weight:600}
+textarea.inp{min-height:90px;resize:vertical;font-family:inherit}
 /* выделение строк для суммы */
 .ln.pick{background:var(--actBg);box-shadow:inset 0 0 0 2px var(--acc)}
 body.picking .ln:not(.draft){cursor:pointer}
@@ -120,8 +123,16 @@ body.picking .ln:not(.draft){cursor:pointer}
 @media not ((min-width:720px) and (min-aspect-ratio:1/1)){#kbBtn,#fxBtn,#miniBtn{display:none}}
 body.mini #miniBtn{display:inline-flex!important}
 /* режимы мини-окна */
-#sizeBtn,#mFab{display:none}
-body.mini #sizeBtn{display:inline-flex}
+#sizeBtn,#mFab,#stripBtn,#sFab,#strip{display:none}
+body.mini #sizeBtn,body.mini #stripBtn{display:inline-flex}
+body.m-line #sFab{display:flex;position:absolute;left:42px;top:50%;transform:translateY(-50%);width:32px;height:36px;border-radius:9px;align-items:center;justify-content:center;color:var(--muted);z-index:3}
+body.m-line #tape{padding-left:76px!important}
+/* полоска: только название и последний результат; нажатие — развернуть */
+body.m-strip>*:not(#strip):not(#toast){display:none!important}
+body.m-strip #strip{display:flex;align-items:center;gap:10px;height:100vh;padding:0 10px 0 12px;background:var(--bar);color:var(--barInk);cursor:pointer;font-size:15px;user-select:none}
+body.m-strip #strip b{font-weight:600;white-space:nowrap}
+body.m-strip #strip span{flex:1;text-align:right;color:var(--acc);font-size:17px;font-variant-numeric:tabular-nums;overflow:hidden;white-space:nowrap}
+body.m-strip #strip svg{opacity:.7}
 body.m-compact{--fs:19px;--fsD:23px}
 body.m-compact header.top h1{font-size:15px}
 body.m-compact .k{font-size:18px}body.m-compact .k.eq{font-size:22px}body.m-compact .k.sm{font-size:14px}
@@ -186,11 +197,18 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 #busy div{background:var(--dlg);color:var(--dlgInk);padding:16px 22px;border-radius:14px;font-size:16px}
 #helpView{position:fixed;inset:0;z-index:28;display:flex;flex-direction:column;background:var(--dlg);color:var(--dlgInk)}
 #helpView .hh{flex:none;display:flex;align-items:center;padding:env(safe-area-inset-top) 4px 0 16px;min-height:46px;background:var(--bar);color:var(--barInk);font-size:17px}
-#helpView .hh b{flex:1}
+#helpView .hh b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #helpView .hb{flex:1;overflow-y:auto;padding:10px 16px 30px;font-size:15px;line-height:1.5;max-width:760px;width:100%;margin:0 auto;user-select:text;-webkit-user-select:text}
 #helpView .toc{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
 #helpView .toc a{padding:5px 10px;border-radius:14px;background:var(--actBg);color:inherit;text-decoration:none;font-size:13.5px}
-#helpView h3{margin:20px 0 6px;font-size:17px;color:var(--acc)}
+#helpView h3{margin:14px 0 6px;font-size:15.5px;color:var(--acc)}
+#helpView details{border-bottom:1px solid rgba(128,128,128,.25)}
+#helpView summary{font-size:17px;font-weight:600;color:var(--acc);padding:12px 4px;cursor:pointer;list-style-position:inside}
+#helpView details[open] summary{margin-bottom:4px}
+#helpView details>*:not(summary){margin-left:4px;margin-right:4px}
+#helpView details[open]{padding-bottom:10px}
+#helpView .hx{font-size:13px;padding:6px 8px;border-radius:8px;opacity:.85}
+#helpView .hx:active{background:rgba(128,128,128,.2)}
 #helpView p{margin:0 0 8px}
 #helpView ul{margin:0 0 8px;padding-left:20px}
 #helpView li{margin-bottom:3px}
@@ -210,6 +228,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
   <button class="ib" id="redoBtn" title="Повторить (Ctrl+Y)"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
   <button class="ib hidden" id="syncBtn" title="Синхронизировать с GitHub"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></svg></button>
   <button class="ib" id="findBtn" title="Поиск (Ctrl+F)"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+  <button class="ib" id="stripBtn" title="Свернуть в полоску"><svg class="i" viewBox="0 0 24 24"><path d="M5 18h14"/></svg></button>
   <button class="ib" id="sizeBtn" title="Размер мини-окна (Ctrl+↑ / Ctrl+↓)"><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
   <button class="ib hidden" id="miniBtn" title="Мини-окно поверх всех окон (Ctrl+M)"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="11" width="7" height="7" rx="1"/></svg></button>
   <button class="ib" id="fxBtn" title="Калькулятор: обычный или с функциями">f(x)</button>
@@ -221,6 +240,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
   <div id="left">
     <div id="search" class="hidden"><input id="q" type="search" placeholder="Число или подпись" autocomplete="off"><span class="cnt" id="qCnt"></span><button class="ib" id="qClose" title="Закрыть поиск (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div id="pins" class="hidden"></div>
+    <button id="sFab" title="Свернуть в полоску" tabindex="-1"><svg class="i" viewBox="0 0 24 24"><path d="M5 18h14"/></svg></button>
     <button id="mFab" title="Размер мини-окна" tabindex="-1"><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
     <section id="tape"><div id="lines"></div></section>
     <div id="selBar" class="hidden"></div>
@@ -233,13 +253,14 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
     </div>
   </section>
 </main>
-<div id="helpView" class="hidden"><div class="hh"><b>Калькулятор · Справка</b><button class="ib" id="helpClose" title="Закрыть (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="hb"></div></div>
+<div id="strip"><b>Калькулятор</b><span id="stripRes"></span><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></div>
+<div id="helpView" class="hidden"><div class="hh"><b>Калькулятор · Справка</b><button class="hx" id="helpOpenAll" title="Развернуть все разделы">▾ все</button><button class="hx" id="helpCloseAll" title="Свернуть все разделы">▴ все</button><button class="ib" id="helpClose" title="Закрыть (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="hb"></div></div>
 <div id="dlg" class="hidden"><div class="box"></div></div>
 <div id="toast" class="hidden"></div>
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='4.1',APP_DATE='22.11.2026';
+const APP_VERSION='4.2',APP_DATE='25.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -273,8 +294,13 @@ const mqDark=matchMedia('(prefers-color-scheme: dark)');
 function curTheme(){if(S.theme==='auto')return mqDark.matches?THEMES.dark:THEMES.light;return THEMES[S.theme]||THEMES.dark;}
 function applyTheme(){
   const t=curTheme();
-  for(const d of docs())for(const k in DARK)d.documentElement.style.setProperty('--'+k,t[k]);
-  $('meta[name=theme-color]').content=t.bar;
+  for(const d of docs()){
+    for(const k in DARK)d.documentElement.style.setProperty('--'+k,t[k]);
+    // цвет полоски окна (основного и мини-окна) — по теме
+    let m=d.querySelector('meta[name=theme-color]');
+    if(!m){m=d.createElement('meta');m.name='theme-color';d.head.appendChild(m);}
+    m.content=t.bar;
+  }
 }
 mqDark.addEventListener('change',()=>{if(S.theme==='auto')applyTheme();});
 
@@ -388,7 +414,7 @@ function setEd(st){
 function leaveEdit(){
   if(ed.id==='draft')return;
   const l=lines.find(x=>x.id===ed.id);
-  if(l&&!l.del&&!l.expr.length){
+  if(l&&!l.del&&!l.expr.length&&l.note===undefined){
     if(l.tmp)lines.splice(lines.indexOf(l),1);
     else{l.del=1;l.upd=now();}
   }
@@ -665,6 +691,28 @@ function setProp(id,prop,val){
   if(val===undefined)delete l[prop];else l[prop]=val;
   l.upd=now();changed();
 }
+// Заметка — строка истории с текстом вместо расчёта (быстрый блокнот). Синхронизируется как обычная строка.
+async function noteDlg(id){
+  const l=id?byId(id):null;
+  const p=openDlg(`<h2>${l?'Изменить заметку':'Заметка'}</h2><textarea class="inp" id="nTxt" maxlength="2000" placeholder="Текст: номера, размеры, что угодно">${esc(l?l.note:'')}</textarea>
+    <div class="foot" style="padding:0 2px 6px">Ctrl+Enter — сохранить. Пусто — заметка будет удалена.</div>
+    <div class="btns"><button data-r="no">Отмена</button><button class="pri" data-r="ok">Сохранить</button></div>`);
+  const t=$('#nTxt');t.focus();t.setSelectionRange(t.value.length,t.value.length);
+  t.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();closeDlg('ok');}});
+  if(await p!=='ok')return;
+  const txt=$('#nTxt').value.replace(/\s+$/,'');
+  leaveEdit();
+  if(l){
+    if(!txt){deleteLine(l.id);return;}
+    if(txt===l.note)return;
+    pushUndo([{id:l.id,before:clone(l)}],'note');l.note=txt;l.upd=now();l.mod=now();changed();return;
+  }
+  if(!txt)return;
+  const L=vis();
+  const n={id:newId(),pos:nextPos(L),expr:[],note:txt,upd:now(),at:now(),del:0};
+  if(pendingBrk&&L.length)n.brk=1;pendingBrk=false;
+  lines.push(n);pushUndo([{id:n.id,before:null}],'add');changed();scrollBottom();
+}
 function insertAbove(id){
   const L=vis(),i=L.findIndex(l=>l.id===id);if(i<0)return;
   const pos=i>0?(L[i-1].pos+L[i].pos)/2:L[i].pos-1;
@@ -747,6 +795,8 @@ function exprHTML(expr,active,sel,cur,hl){
   return h;
 }
 function lineHTML(l,refd,no){
+  if(l.note!==undefined) // заметка: просто текст
+    return (S.nums?`<span class="no">${no}</span>`:'')+(l.pin?'<span class="lbl">📌</span>':'')+`<span class="note">${esc(l.note)}</span>`;
   const act=ed.id===l.id,r=results.get(l.id);
   const expr=act?ed.atoms:l.expr;
   // строка над выражением: подпись (если включены), отметка закрепления, когда изменено
@@ -798,6 +848,7 @@ const norm=t=>String(t).toLowerCase().replace(/[\s\u00A0\u202F]/g,'').replace(/,
 function matches(l){
   if(!query)return true;
   const r=results.get(l.id);
+  if(l.note!==undefined)return norm(l.note).includes(norm(query));
   return norm((l.label||'')+' '+C.exprText(l.expr,refVal,optsF())+'='+(r&&!r.err?fmtV(r.v):'')).includes(norm(query));
 }
 function render(){
@@ -852,11 +903,12 @@ function render(){
 // Закреплённые строки — сверху ленты; нажатие вставляет значение ссылкой, долгое нажатие — меню строки
 function renderPins(L){
   const P=L.filter(l=>l.pin),box=$('#pins');
+  // заметка: только текст, нажатие копирует
   box.classList.toggle('hidden',!P.length);
-  const h=P.map(l=>{const v=refVal(l.id);return `<button class="pin" data-id="${esc(l.id)}" tabindex="-1"><span>${esc((S.labels&&l.label)||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('');
+  const h=P.map(l=>{if(l.note!==undefined)return `<button class="pin" data-id="${esc(l.id)}" data-note="1" tabindex="-1"><span>${esc(l.note.split('\n')[0].slice(0,60))}</span></button>`;const v=refVal(l.id);return `<button class="pin" data-id="${esc(l.id)}" tabindex="-1"><span>${esc((S.labels&&l.label)||C.exprText(l.expr,refVal,optsF()))}</span><b>${v===undefined?'?':fmtV(v)}</b></button>`;}).join('');
   if(box._h!==h){box.innerHTML=h;box._h=h;}
 }
-function changed(){results=C.computeAll(lines);render();scheduleSave();renderSyncBtn();if(ed.id==='draft')scrollBottom();} // строка ввода с предпросмотром всегда видна над клавиатурой
+function changed(){results=C.computeAll(lines);render();scheduleSave();renderSyncBtn();renderStrip();if(ed.id==='draft')scrollBottom();} // строка ввода с предпросмотром всегда видна над клавиатурой
 function rerenderAll(){for(const n of nodes.values())n._h='';render();}
 const scrollBottom=()=>{const t=$('#tape');t.scrollTop=t.scrollHeight;};
 new ResizeObserver(()=>{if(ed.id==='draft')scrollBottom();}).observe($('#tape'));
@@ -902,6 +954,7 @@ $('#tape').addEventListener('click',e=>{
   if(picked){if(ln&&ln.dataset.id!=='draft')togglePick(ln.dataset.id);return;}
   if(!ln){activate('draft');return;}
   const id=ln.dataset.id;
+  if(id!=='draft'&&(byId(id)||{}).note!==undefined){noteDlg(id);return;}
   const res=e.target.closest('.res');
   if(res){insertRef(res.dataset.r);return;}
   const at=e.target.closest('[data-i]');
@@ -922,7 +975,7 @@ $('#tape').addEventListener('click',e=>{
   }
 });
 $('#pins').addEventListener('mousedown',e=>e.preventDefault());
-$('#pins').addEventListener('click',e=>{const b=e.target.closest('.pin');if(b)insertRef(b.dataset.id);});
+$('#pins').addEventListener('click',e=>{const b=e.target.closest('.pin');if(!b)return;if(b.dataset.note){const l=byId(b.dataset.id);if(l)copyText(l.note);return;}insertRef(b.dataset.id);});
 $('#pins').addEventListener('contextmenu',e=>{e.preventDefault();const b=e.target.closest('.pin');if(b)lineMenu(b.dataset.id);});
 // долгое нажатие (на ПК — правая кнопка мыши)
 $('#tape').addEventListener('contextmenu',e=>{
@@ -992,6 +1045,13 @@ async function lineMenu(id,refAt,numAt){
     return;
   }
   const l=byId(id);if(!l)return;
+  if(l.note!==undefined){
+    const k=await choose('Заметка',[{k:'ed',l:'Изменить заметку'},{k:'cp',l:'Копировать текст'},{k:'del',l:'Удалить',c:'dng'},
+      {k:'pin',l:l.pin?'Открепить':'Закрепить сверху',more:1},{k:'above',l:'Вставить строку выше',more:1}]);
+    if(k==='ed')noteDlg(id);else if(k==='cp')copyText(l.note);else if(k==='del')deleteLine(id);
+    else if(k==='pin')setProp(id,'pin',l.pin?undefined:1);else if(k==='above')insertAbove(id);
+    return;
+  }
   const r=results.get(id);
   // сверху — частые действия, остальное — под «Ещё»
   const items=one.filter(x=>!x.more);
@@ -1038,7 +1098,7 @@ async function lineMenu(id,refAt,numAt){
 }
 const optsF=()=>({dec:S.dec,sep:S.sep,group:S.group});
 const refVal=id=>{const x=results.get(id);return x&&!x.err?x.v:undefined;};
-function lineText(l){const r=results.get(l.id);return C.exprText(l.expr,refVal,optsF())+' = '+(r?(r.err?r.err:fmtV(r.v).replace(/ /g,' ')):'');}
+function lineText(l){if(l.note!==undefined)return l.note;const r=results.get(l.id);return C.exprText(l.expr,refVal,optsF())+' = '+(r?(r.err?r.err:fmtV(r.v).replace(/ /g,' ')):'');}
 
 /* ---------- буфер обмена ---------- */
 function copyText(t,msg){
@@ -1179,6 +1239,7 @@ $('#pad').addEventListener('click',e=>{
 const KEYMAP={';':';','*':'×','/':'÷','x':'×','X':'×',':':'÷',',':'.','.':'.','+':'+','-':'-','^':'^','(':'(',')':')','%':'%','!':'!','p':'π','P':'π','r':'√','R':'√'};
 function onKey(e){
   if(e.key==='F1'){e.preventDefault();openHelp();return;}
+  if(e.key==='F2'&&$('#dlg').classList.contains('hidden')){e.preventDefault();noteDlg(null);return;} // новая заметка
   if(!$('#helpView').classList.contains('hidden')){if(e.key==='Escape'){e.preventDefault();closeHelp();}return;}
   const dlgOpen=!$('#dlg').classList.contains('hidden');
   if(dlgOpen){if(e.key==='Escape'){e.preventDefault();closeDlg(null);}return;}
@@ -1206,12 +1267,29 @@ function onKey(e){
   else if(S.labels&&e.key.length===1&&/\p{L}/u.test(e.key)){e.preventDefault();pickByLabel(e.key);return;} // буквы — поиск по подписи
   else if(e.key==='Enter'||e.key==='='){
     if(e.shiftKey&&ed.id!=='draft'){const id=ed.id;e.preventDefault();activate('draft');insertRef(id);return;}
+    // Enter на строке истории (выбрана, не правилась, число не выделено) — её результат в строку ввода
+    if(e.key==='Enter'&&ed.id!=='draft'&&!ed.dirty&&!selectedPiece()){
+      e.preventDefault();const id=ed.id,r=results.get(id);
+      leaveEdit();
+      if(r&&!r.err)toDraft([{r:id}]);else{changed();toast('В этой строке нет результата');}
+      return;
+    }
     k='=';
   }
   else if(e.key==='Backspace')k='back';
   else if(e.key==='Delete'&&e.shiftKey){ // Shift+Delete — удалить строку истории, на которой стоите
     e.preventDefault();
     if(ed.id!=='draft'){const id=ed.id;leaveEdit();deleteLine(id);toast('Строка удалена — Ctrl+Z вернёт');}
+    return;
+  }
+  // Delete на строке истории (выбрана стрелками или нажатием, не правилась) — удалить строку
+  else if(e.key==='Delete'&&ed.id!=='draft'&&!ed.dirty&&!ed.hl&&!ed.sel&&ed.cur===ed.atoms.length){
+    e.preventDefault();
+    const L=vis(),i=L.findIndex(l=>l.id===ed.id),id=ed.id;
+    leaveEdit();deleteLine(id);
+    const L2=vis(),nx=L2[Math.min(i,L2.length-1)];
+    if(nx&&i<L2.length&&nx.note===undefined)activate(nx.id);else activate('draft'); // следующая строка — можно удалять подряд
+    toast('Строка удалена — Ctrl+Z вернёт');
     return;
   }
   else if(e.key==='Delete')k='del';
@@ -1227,7 +1305,7 @@ function onKey(e){
   }
   else if(e.key==='ArrowUp'||e.key==='ArrowDown'){
     e.preventDefault();
-    const L=vis();if(!L.length)return;
+    const L=vis().filter(l=>l.note===undefined);if(!L.length)return; // заметки стрелками не выбираются
     const i=ed.id==='draft'?L.length:L.findIndex(l=>l.id===ed.id);
     const j=e.key==='ArrowUp'?Math.max(0,i-1):i+1;
     if(j>=L.length)activate('draft');else activate(L[j].id);
@@ -1296,19 +1374,33 @@ function pipHost(){
 }
 const miniOk=()=>!!pipHost();
 // Режимы мини-окна: размер выставляется кнопкой точно (мышью Chrome всё равно даёт тянуть границы)
-const MINI={full:{w:360,h:600,n:'обычное'},compact:{w:290,h:430,n:'компактное'},nokb:{w:340,h:220,n:'без клавиатуры'},line:{w:380,h:60,n:'одна строка'}};
+const MINI={full:{w:360,h:600,n:'обычное'},compact:{w:290,h:430,n:'компактное'},nokb:{w:340,h:220,n:'без клавиатуры'},line:{w:380,h:60,n:'одна строка'},strip:{w:260,h:40,n:'полоска'}};
 const MINI_ORDER=['full','compact','nokb','line'];
 function setMiniMode(m,resize){
   if(!MINI[m])m='full';
   S.miniMode=m;scheduleSave();
   if(!pip)return;
-  for(const k of MINI_ORDER)pip.document.body.classList.toggle('m-'+k,k===m);
+  for(const k of [...MINI_ORDER,'strip'])pip.document.body.classList.toggle('m-'+k,k===m);
+  renderStrip();
   if(resize){
     try{pip.resizeTo(MINI[m].w+(pip.outerWidth-pip.innerWidth),MINI[m].h+(pip.outerHeight-pip.innerHeight));}catch(e){}
   }
   render();scrollBottom();
 }
+// Свернуть мини-окно в полоску (не закрывая) и развернуть обратно в прежний режим
+function toggleStrip(){
+  if(!pip)return;
+  if(S.miniMode==='strip')setMiniMode(S.miniPrev&&MINI[S.miniPrev]&&S.miniPrev!=='strip'?S.miniPrev:'full',true);
+  else{S.miniPrev=S.miniMode||'full';setMiniMode('strip',true);}
+}
+function renderStrip(){
+  const el=$('#stripRes');if(!el)return;
+  const L=vis().filter(l=>l.note===undefined);let v;
+  for(let i=L.length-1;i>=0&&v===undefined;i--)v=refVal(L[i].id);
+  el.textContent=v===undefined?'':fmtV(v);
+}
 function stepMini(dir){ // dir: +1 — следующий режим (меньше), -1 — предыдущий (больше)
+  if(S.miniMode==='strip'){toggleStrip();return;}
   const i=MINI_ORDER.indexOf(S.miniMode||'full');
   setMiniMode(MINI_ORDER[(i+dir+MINI_ORDER.length)%MINI_ORDER.length],true);
 }
@@ -1330,6 +1422,7 @@ async function openMini(){
   for(const st of document.querySelectorAll('style'))d.head.appendChild(st.cloneNode(true));
   d.documentElement.style.cssText=document.documentElement.style.cssText;
   d.body.className=document.body.className+' mini';
+  {const m=d.createElement('meta');m.name='theme-color';m.content=curTheme().bar;d.head.appendChild(m);}
   const moved=[...document.body.children].filter(e=>e.tagName!=='SCRIPT');
   for(const e of moved)d.body.appendChild(e);
   const note=document.createElement('div');note.id='miniNote';
@@ -1350,6 +1443,7 @@ async function openMini(){
 }
 $('#miniBtn').onclick=openMini;
 $('#sizeBtn').onclick=()=>stepMini(1);
+$('#stripBtn').onclick=toggleStrip;$('#sFab').onclick=toggleStrip;$('#strip').onclick=toggleStrip;
 $('#mFab').onclick=()=>stepMini(1);
 if(miniOk())$('#miniBtn').classList.remove('hidden');
 
@@ -1383,9 +1477,9 @@ const ATOM_OK=new Set(['0','1','2','3','4','5','6','7','8','9','.','+','-','×',
 function validLine(l){
   return !!l&&typeof l.id==='string'&&l.id.length>0&&l.id.length<40&&Array.isArray(l.expr)&&l.expr.length<2000&&
     l.expr.every(a=>typeof a==='string'?ATOM_OK.has(a):(a&&typeof a.r==='string'))&&
-    Number.isFinite(l.pos)&&Number.isFinite(l.upd)&&(l.label===undefined||typeof l.label==='string');
+    Number.isFinite(l.pos)&&Number.isFinite(l.upd)&&(l.label===undefined||typeof l.label==='string')&&(l.note===undefined||(typeof l.note==='string'&&l.note.length<=2000));
 }
-const LINE_KEYS=['id','pos','expr','upd','at','del','label','pin','brk','mod'];
+const LINE_KEYS=['id','pos','expr','upd','at','del','label','pin','brk','mod','note'];
 function cleanLine(l){const o={};for(const k of LINE_KEYS)if(l[k]!==undefined)o[k]=l[k];return o;}
 function validTpl(t){return !!t&&typeof t.id==='string'&&typeof t.name==='string'&&Array.isArray(t.parts)&&Array.isArray(t.f);}
 let syncing=false;
@@ -1555,13 +1649,15 @@ $('#q').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();c
 $('#menuBtn').onclick=async()=>{
   const nT=trash().length,cfg=syncCfg();
   const k=await choose('Меню',[
-    {k:'sy',l:'Синхронизировать'},
-    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'tpls',l:'Шаблоны'},...(miniOk()?[{k:'mini',l:pip?'Вернуть из мини-окна':'Мини-окно поверх всех окон'}]:[]),
-    {k:'tr',l:nT?`Корзина (${nT})`:'Корзина'},{k:'st',l:'Настройки'},{k:'help',l:'Справка'},{k:'up',l:'Проверить обновления'},
+    {k:'brk',l:pendingBrk?'Отменить «новый расчёт»':'Начать новый расчёт'},{k:'note',l:'Заметка'},{k:'tpls',l:'Шаблоны'},...(miniOk()?[{k:'mini',l:pip?'Вернуть из мини-окна':'Мини-окно поверх всех окон'}]:[]),
+    {k:'st',l:'Настройки'},{k:'help',l:'Справка'},
+    {k:'tr',l:nT?`Корзина (${nT})`:'Корзина'},{k:'bk',l:'Создать резервную копию',c:'hi'},{k:'rs',l:'Восстановить из резервной копии'},
+    {k:'sy',l:'Синхронизировать',more:1},{k:'up',l:'Проверить обновления',more:1},
     {k:'pick',l:'Вставить по подписи',more:1},{k:'sel',l:'Выделить строки (сумма)',more:1},{k:'th',l:'Темы',more:1},{k:'cp',l:'Копировать всю историю',more:1},
-    {k:'bk',l:'Создать резервную копию',more:1},{k:'rs',l:'Восстановить из резервной копии',more:1},{k:'clr',l:'Очистить историю',c:'dng',more:1}],
+    {k:'clr',l:'Очистить историю',c:'dng',more:1}],
     `Версия ${APP_VERSION} от ${APP_DATE}<br>Синхронизация: ${cfg?(syncState.lastSync?whenText(syncState.lastSync):'ещё не было'):'не настроена'}`);
   if(k==='sy')syncNow();
+  else if(k==='note')noteDlg(null);
   else if(k==='tr')trashDlg();
   else if(k==='bk')makeBackup();
   else if(k==='rs')restoreBackup();
@@ -1580,7 +1676,8 @@ $('#menuBtn').onclick=async()=>{
 $('#helpClose').onclick=()=>closeHelp();
 $('#syncBtn').onclick=()=>syncNow();
 // оглавление: прокрутка внутри справки без перехода по адресу (в мини-окне переход закрыл бы окно)
-$('#helpView').addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;e.preventDefault();const t=$('#helpView .hb').querySelector(a.getAttribute('href'));if(t)t.scrollIntoView({block:'start'});});
+$('#helpView').addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;e.preventDefault();const t=$('#helpView .hb').querySelector(a.getAttribute('href'));if(t){if(t.tagName==='DETAILS')t.open=true;t.scrollIntoView({block:'start'});}});
+$('#helpOpenAll').onclick=()=>helpAll(true);$('#helpCloseAll').onclick=()=>helpAll(false);
 $('#undoBtn').onclick=undo;$('#redoBtn').onclick=redo;$('#kbBtn').onclick=togglePad;$('#fxBtn').onclick=toggleWideSci;
 
 function themeCard(id){
@@ -1684,6 +1781,7 @@ async function openHelp(){
   if(!b.childElementCount){try{b.innerHTML=await (await fetch('help.part')).text();}catch(e){b.textContent='Справка недоступна: нет сети и нет сохранённой копии.';}}
   v.classList.remove('hidden');b.scrollTop=0;
 }
+function helpAll(open){$('#helpView .hb').querySelectorAll('details').forEach(d=>d.open=open);}
 const closeHelp=()=>$('#helpView').classList.add('hidden');
 
 /* ---------- запуск ---------- */

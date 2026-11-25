@@ -446,6 +446,40 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК Shift+Enter', L[4], '1 024 × 3 = 3 072');
   await d.keyboard.press('Control+z');
   eq('ПК Ctrl+Z', (await dl()).length, 4);
+  // Enter на строке истории — её результат в строку ввода; Delete на строке — удалить строку
+  await d.keyboard.press('Escape');
+  const n0 = (await dl()).length;
+  await d.keyboard.press('ArrowUp'); await d.keyboard.press('ArrowUp'); await d.keyboard.press('Enter');
+  eq('ПК Enter на строке: ссылка в строку ввода', await d.$$eval('.ln.draft .ref', ns => ns.length), 1);
+  eq('ПК Enter на строке: строка не изменилась', (await dl()).length, n0);
+  await d.keyboard.press('Escape');
+  await d.keyboard.press('ArrowUp'); await d.keyboard.press('Delete');
+  eq('ПК Delete на строке: удалена', (await dl()).length, n0 - 1);
+  eq('ПК Delete на последней строке: возврат в строку ввода', await d.$$eval('#lines .ln.act', ns => ns.length), 0);
+  await d.keyboard.press('Control+z');
+  eq('ПК Ctrl+Z вернул строку', (await dl()).length, n0);
+  // заметка: F2, Ctrl+Enter
+  await d.keyboard.press('Escape');
+  await d.keyboard.press('F2'); await d.keyboard.type('Заказ 358: 2 листа'); await d.keyboard.press('Control+Enter');
+  eq('ПК заметка добавлена', await d.$$eval('#lines .note', ns => ns.map(n => n.textContent)), ['Заказ 358: 2 листа']);
+  await d.click('#lines .note'); await d.fill('#nTxt', 'Заказ 358: 3 листа'); await d.click('#dlg .btns .pri');
+  eq('ПК заметка изменена', await d.$$eval('#lines .note', ns => ns.map(n => n.textContent)), ['Заказ 358: 3 листа']);
+  await d.click('#findBtn'); await d.fill('#q', '358');
+  eq('ПК поиск находит заметку', await d.$$eval('#lines .ln.found .note', ns => ns.length), 1);
+  await d.click('#qClose');
+  await d.keyboard.press('ArrowUp');
+  eq('ПК стрелки пропускают заметку', await d.$$eval('#lines .ln.act .note', ns => ns.length), 0);
+  await d.keyboard.press('Escape');
+  await d.locator('#lines .note').click({button: 'right'}); await d.click('#dlg .mi.dng');
+  eq('ПК заметка удалена в корзину', [await d.$$eval('#lines .note', ns => ns.length), await d.evaluate(() => trash().some(l => l.note))], [0, true]);
+  // порядок главного меню
+  await d.click('#menuBtn');
+  eq('меню: сверху', await d.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)),
+    ['Начать новый расчёт', 'Заметка', 'Шаблоны', 'Мини-окно поверх всех окон', 'Настройки', 'Справка', 'Корзина (1)', 'Создать резервную копию', 'Восстановить из резервной копии']);
+  eq('меню: резервная копия выделена', await d.$eval('#dlg .mi[data-r="bk"]', n => n.classList.contains('hi')), true);
+  eq('меню: под «Ещё» — синхронизировать и обновления', await d.$$eval('#moreBox .mi', ns => ns.slice(0, 2).map(n => n.textContent)), ['Синхронизировать', 'Проверить обновления']);
+  await d.keyboard.press('Escape');
+
   // Delete по назначению
   const dr = async () => clean(await d.$eval('.ln.draft', n => n.textContent)).replace(/\s/g, '');
   await kb('12+34'); await d.keyboard.press('ArrowLeft'); await d.keyboard.press('ArrowLeft'); await d.keyboard.press('Delete');
@@ -500,12 +534,20 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.click('#kbBtn');
   // справка: отдельный файл help.part
   await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="help"]');
-  await d.waitForSelector('#helpView .hb section');
+  await d.waitForSelector('#helpView .hb details');
   eq('справка: открыта', await d.isVisible('#helpView'), true);
-  const secs = await d.$$eval('#helpView .hb section', ns => ns.map(n => n.id));
+  const secs = await d.$$eval('#helpView .hb details', ns => ns.map(n => n.id));
   eq('справка: разделов', secs.length >= 15, true);
   eq('справка: оглавление ведёт на существующие разделы', await d.$$eval('#helpView .toc a', as => as.every(a => document.querySelector(a.getAttribute('href')))), true);
+  eq('справка: разделы свёрнуты (кроме «Что нового»)', await d.$$eval('#helpView .hb details[open]', ns => ns.map(n => n.id)), ['h-new']);
+  await d.click('#helpView .hb details#h-round summary');
+  eq('справка: раздел раскрывается нажатием', await d.$eval('#h-round', n => n.open), true);
+  await d.click('#helpOpenAll');
+  eq('справка: развернуть всё', await d.$$eval('#helpView .hb details:not([open])', ns => ns.length), 0);
+  await d.click('#helpCloseAll');
+  eq('справка: свернуть всё', await d.$$eval('#helpView .hb details[open]', ns => ns.length), 0);
   await d.click('#helpView .toc a[href="#h-mini"]');
+  eq('справка: оглавление раскрывает раздел', await d.$eval('#h-mini', n => n.open), true);
   eq('справка: переход по оглавлению без смены адреса', [await d.isVisible('#helpView'), await d.evaluate(() => location.hash)], [true, '']);
   await d.screenshot({path: OUT + '/pc-3-help.png'});
   await d.keyboard.press('Escape');
@@ -545,6 +587,13 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await mw.locator('#lines .ln').nth(0).click({button: 'right'});
   eq('мини: меню строки открывается', await mw.$$eval('#dlg .mi', ns => ns.length) > 3, true);
   await mw.keyboard.press('Escape');
+  eq('мини: цвет полоски окна по теме', await mw.$eval('meta[name=theme-color]', n => n.content), '#161a23');
+  // свернуть в полоску и развернуть
+  await mw.click('#stripBtn');
+  eq('мини: полоска', [await mw.evaluate(() => document.body.classList.contains('m-strip')), await mw.isVisible('#strip'), await mw.isVisible('#pad')], [true, true, false]);
+  eq('мини: в полоске последний результат', (await mw.textContent('#stripRes')).trim(), '50');
+  await mw.click('#strip');
+  eq('мини: развернулось в прежний режим', await mw.evaluate(() => document.body.classList.contains('m-full')), true);
   eq('мини: тема перенесена', await mw.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--eq').trim()), '#31a84a');
   await mw.setViewportSize({width: 360, height: 600});
   await mw.screenshot({path: OUT + '/pc-4-mini.png'});
@@ -618,7 +667,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.1']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.2']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
