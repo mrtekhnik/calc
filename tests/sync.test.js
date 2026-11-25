@@ -74,7 +74,7 @@ const sorted = a => a.slice().sort();
 
   // 4. удаление в корзину и окончательное удаление
   const n0 = (await exprs(A)).length;
-  await A.locator('#lines .ln').nth(2).click({button: 'right'}); await A.click('#dlg .mi[data-r="del"]');
+  await A.locator('#lines .ln').nth(2).click({button: 'right'}); await A.click('#moreBtn'); await A.click('#dlg .mi[data-r="del"]');
   eq('4: в корзине на A', await trashN(A), 1);
   await sync(A); await sync(B);
   eq('4: на B строка ушла в корзину', [(await exprs(B)).length, await trashN(B)], [n0 - 1, 1]);
@@ -85,7 +85,7 @@ const sorted = a => a.slice().sort();
   await sync(B); await sync(A);
   eq('4: восстановлено и на A', [(await exprs(A)).length, await trashN(A)], [n0, 0]);
   // снова удалить и очистить корзину на A — на B строка исчезает совсем
-  await A.locator('#lines .ln').nth(2).click({button: 'right'}); await A.click('#dlg .mi[data-r="del"]');
+  await A.locator('#lines .ln').nth(2).click({button: 'right'}); await A.click('#moreBtn'); await A.click('#dlg .mi[data-r="del"]');
   await A.click('#menuBtn'); await A.click('#dlg .mi[data-r="tr"]'); await A.click('#dlg [data-r="ca"]'); await A.click('#dlg .btns .dng');
   await A.keyboard.press('Escape');
   eq('4: корзина A пуста', await trashN(A), 0);
@@ -109,7 +109,7 @@ const sorted = a => a.slice().sort();
   await A.keyboard.press('F2'); await A.keyboard.type('Позвонить снабженцу'); await A.keyboard.press('Control+Enter');
   await sync(A); await sync(B);
   eq('заметка дошла до B', await B.$$eval('#lines .note', ns => ns.map(n => n.textContent)), ['Позвонить снабженцу']);
-  await B.locator('#lines .note').click({button: 'right'}); await B.click('#dlg .mi.dng');
+  await B.locator('#lines .note').click({button: 'right'}); await B.click('#moreBtn'); await B.click('#dlg .mi.dng');
   await sync(B); await sync(A);
   eq('удаление заметки дошло до A', await A.$$eval('#lines .note', ns => ns.length), 0);
 

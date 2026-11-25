@@ -98,7 +98,8 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // удаление строки 2 через долгое нажатие: в строке 3 остаётся число
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
-  await p.click('#dlg .mi.dng');
+  eq('меню строки: «Удалить» не сверху', await p.isVisible('#dlg .mi[data-r="del"]'), false);
+  await mi(p, 'del');
   await p.click('#dlg .btns .dng');
   L = (await lineTexts()).map(clean);
   eq('после удаления', L[1], '17902,5 ÷ 5,5 = 3 255');
@@ -301,7 +302,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // меню строки: сверху важное, остальное под «Ещё»
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
-  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Править строку', 'Удалить строку']);
+  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Править строку']);
   eq('меню: «Ещё» скрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), false);
   await p.click('#moreBtn');
   eq('меню: «Ещё» раскрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), true);
@@ -360,6 +361,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('номера строк', await p.$$eval('#lines .no', ns => ns.slice(0, 3).map(n => n.textContent)), ['1', '2', '3']);
   await p.screenshot({path: OUT + '/phone-16-nums.png'});
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="nums"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
+  eq('телефон: размер цифр — три варианта, как было', await p.evaluate(() => { settingsDlg(); const ok = !!document.querySelector('#dlg .seg[data-s="size"]') && !document.querySelector('#dlg .seg[data-s="pcZoom"]'); closeDlg(null); return ok; }), true);
   // подписи можно выключить
   await p.click('#menuBtn'); await p.click('#dlg .mi[data-r="st"]'); await p.click('#dlg .seg[data-s="labels"] button[data-v="false"]'); await p.click('#dlg .btns .pri');
   eq('подписи выключены', await p.$$eval('#lines .lbl', ns => ns.length), 0);
@@ -454,10 +456,26 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК Enter на строке: строка не изменилась', (await dl()).length, n0);
   await d.keyboard.press('Escape');
   await d.keyboard.press('ArrowUp'); await d.keyboard.press('Delete');
-  eq('ПК Delete на строке: удалена', (await dl()).length, n0 - 1);
-  eq('ПК Delete на последней строке: возврат в строку ввода', await d.$$eval('#lines .ln.act', ns => ns.length), 0);
-  await d.keyboard.press('Control+z');
-  eq('ПК Ctrl+Z вернул строку', (await dl()).length, n0);
+  eq('ПК Delete один раз: строка только подсвечена', [(await dl()).length, await d.$$eval('#lines .ln.delarm', ns => ns.length)], [n0, 1]);
+  await d.keyboard.press('ArrowUp');
+  eq('ПК другая клавиша отменяет удаление', [(await dl()).length, await d.$$eval('#lines .ln.delarm', ns => ns.length)], [n0, 0]);
+  await d.keyboard.press('ArrowDown'); await d.keyboard.press('Delete'); await d.keyboard.press('Delete');
+  eq('ПК Delete дважды: удалена', (await dl()).length, n0 - 1);
+  eq('ПК после удаления — строка ввода (не следующая строка)', await d.$$eval('#lines .ln.act', ns => ns.length), 0);
+  eq('ПК кнопка «Вернуть»', await d.isVisible('#tUndo'), true);
+  await d.click('#tUndo');
+  eq('ПК «Вернуть» вернул строку', (await dl()).length, n0);
+  // стёрли строку целиком и вышли — строка не удаляется, а возвращается
+  await d.keyboard.press('ArrowUp');
+  for (let i = 0; i < 12; i++) await d.keyboard.press('Backspace');
+  await d.keyboard.press('Escape');
+  eq('ПК пустая строка вернулась', (await dl()).length, n0);
+  // заметка, начинающаяся с цифр: #
+  await d.keyboard.press('#');
+  eq('ПК # открыл заметку', await d.isVisible('#nTxt'), true);
+  await d.keyboard.type('358 — 2 листа'); await d.keyboard.press('Control+Enter');
+  eq('ПК заметка с цифр', await d.$$eval('#lines .note', ns => ns.map(n => n.textContent)), ['358 — 2 листа']);
+  await d.click('#undoBtn');
   // заметка прямо с клавиатуры: буквы → Enter (подписи с таким текстом нет)
   await d.keyboard.press('Escape');
   await d.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'П', bubbles: true})));
@@ -479,7 +497,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.keyboard.press('ArrowUp');
   eq('ПК стрелки пропускают заметку', await d.$$eval('#lines .ln.act .note', ns => ns.length), 0);
   await d.keyboard.press('Escape');
-  await d.locator('#lines .note').click({button: 'right'}); await d.click('#dlg .mi.dng');
+  await d.locator('#lines .note').click({button: 'right'}); await mi(d, 'del');
   eq('ПК заметка удалена в корзину', [await d.$$eval('#lines .note', ns => ns.length), await d.evaluate(() => trash().some(l => l.note))], [0, true]);
   // порядок главного меню
   await d.click('#menuBtn');
@@ -500,7 +518,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.keyboard.press('Control+z');
   await d.keyboard.press('Escape');
   const before = (await dl()).length;
-  await d.keyboard.press('ArrowUp'); await d.keyboard.press('Shift+Delete');
+  await d.keyboard.press('ArrowUp'); await d.keyboard.press('Shift+Delete'); await d.keyboard.press('Shift+Delete');
   eq('ПК Shift+Delete: строка удалена', (await dl()).length, before - 1);
   await d.keyboard.press('Control+z');
   eq('ПК Ctrl+Z вернул строку', (await dl()).length, before);
@@ -541,6 +559,16 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.click('#kbBtn');
   await d.screenshot({path: OUT + '/pc-2-nokeyboard.png'});
   await d.click('#kbBtn');
+  // размер цифр на ПК (в процентах)
+  await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="st"]');
+  eq('ПК: настройка «Размер цифр на ПК»', [await d.isVisible('#dlg .seg[data-s="pcZoom"]'), await d.isVisible('#dlg .seg[data-s="size"]')], [true, false]);
+  await d.click('#dlg .seg[data-s="pcZoom"] button[data-v="130"]');
+  await d.click('#dlg [data-zst="+"]');
+  eq('ПК: размер 135%', [await d.textContent('#zV'), await d.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--zoom').trim())], ['135%', '1.35']);
+  await d.click('#dlg [data-zst="-"]'); await d.click('#dlg [data-zst="-"]'); await d.click('#dlg [data-zst="-"]'); await d.click('#dlg [data-zst="-"]'); await d.click('#dlg [data-zst="-"]'); await d.click('#dlg [data-zst="-"]'); await d.click('#dlg [data-zst="-"]');
+  eq('ПК: снова 100%', await d.textContent('#zV'), '100%');
+  await d.click('#dlg .btns .pri');
+
   // справка: отдельный файл help.part
   await d.click('#menuBtn'); await d.click('#dlg .mi[data-r="help"]');
   await d.waitForSelector('#helpView .hb details');
@@ -610,7 +638,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await mw.keyboard.press('Escape'); await mw.keyboard.press('ArrowUp');
   await mw.locator('#lines .ln.act .d').first().click({force: true});
   eq('мини: нажатие на строку не выделяет число', await m.evaluate(() => [ed.hl, !!ed.sel]), [false, false]);
-  await mw.keyboard.press('Delete');
+  await mw.keyboard.press('Delete'); await mw.keyboard.press('Delete');
   eq('мини: Delete после нажатия мышью удаляет строку', await m.evaluate(() => vis().length), nLine - 1);
   await mw.keyboard.press('Control+z');
   await mw.click('#mFab');
@@ -694,7 +722,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.3']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.4']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
