@@ -99,7 +99,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // удаление строки 2 через долгое нажатие: в строке 3 остаётся число
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
-  eq('меню строки: «Удалить» не сверху', await p.isVisible('#dlg .mi[data-r="del"]'), false);
+  eq('меню строки: «Удалить» сверху', await p.isVisible('#dlg .mi[data-r="del"]'), true);
   await mi(p, 'del');
   await p.click('#dlg .btns .dng');
   L = (await lineTexts()).map(clean);
@@ -182,6 +182,17 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.click('#dlg .mi[data-r="pd"]');
   eq('вставлена ссылка', await p.$$eval('.ln.draft .ref', ns => ns.length), 1);
   await tap('C');
+
+  // ⌫: стереть строку целиком и нажать ещё раз — строка удалена (с «Вернуть»)
+  const nB = (await lineTexts()).length, txtB = clean((await lineTexts())[2]);
+  await p.locator('#lines .ln').nth(2).locator('.eqs').click();
+  const nAt = await p.evaluate(() => ed.atoms.length);
+  for (let i = 0; i < nAt; i++) await tap('back');
+  eq('⌫: строка пустая, подсказка', (await p.textContent('#lines .ln.act')).includes('⌫ ещё раз удалит'), true);
+  await tap('back');
+  eq('⌫ на пустой строке — удалена', (await lineTexts()).length, nB - 1);
+  await p.click('#tUndo');
+  eq('«Вернуть» — строка с исходным содержимым', [(await lineTexts()).length, clean((await lineTexts())[2])], [nB, txtB]);
 
   // вставка строки выше
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
@@ -318,7 +329,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // меню строки: сверху важное, остальное под «Ещё»
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
-  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Править строку']);
+  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Править строку', 'Удалить строку']);
   eq('меню: «Ещё» скрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), false);
   await p.click('#moreBtn');
   eq('меню: «Ещё» раскрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), true);
@@ -494,7 +505,8 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК «Вернуть» вернул строку', (await dl()).length, n0);
   // стёрли строку целиком и вышли — строка не удаляется, а возвращается
   await d.keyboard.press('ArrowUp');
-  for (let i = 0; i < 12; i++) await d.keyboard.press('Backspace');
+  const nAtPC = await d.evaluate(() => ed.atoms.length);
+  for (let i = 0; i < nAtPC; i++) await d.keyboard.press('Backspace');
   await d.keyboard.press('Escape');
   eq('ПК пустая строка вернулась', (await dl()).length, n0);
   // заметка, начинающаяся с цифр: #
@@ -791,7 +803,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.9']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-5.0']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
