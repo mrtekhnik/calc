@@ -263,7 +263,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='4.4',APP_DATE='25.11.2026';
+const APP_VERSION='4.5',APP_DATE='25.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -963,15 +963,42 @@ $('#selBar').addEventListener('click',e=>{
 });
 
 /* ---------- нажатия в ленте ---------- */
+// Двойное нажатие (двойной тап) на число, результат, зелёную ссылку, предпросмотр или заметку — копировать в буфер.
+// Первое нажатие делает своё обычное дело; если это была вставка результата — при двойном она отменяется.
+let lastTap=null;
+function tapCopyTarget(e,ln,id){
+  const nt=id!=='draft'&&(byId(id)||{}).note;
+  if(typeof nt==='string')return {key:id+':note',text:nt};
+  const pv=e.target.closest('.pv:not(.e)');
+  if(pv&&id==='draft'){const r=C.evaluate(draft,x=>{const q=results.get(x);if(!q||q.err)throw new C.CalcError('x');return q.v;});return r&&!r.err?{key:'draft:pv',text:fmtC(r.v)}:null;}
+  const res=e.target.closest('.res');
+  if(res){const v=refVal(res.dataset.r);return v===undefined?null:{key:id+':res',text:fmtC(v)};}
+  const at=e.target.closest('[data-i]');if(!at)return null;
+  const i=+at.dataset.i,atoms=id==='draft'?draft:(byId(id)||{expr:[]}).expr;
+  if(at.classList.contains('ref')){const a=atoms[i],v=a&&C.isRef(a)?refVal(a.r):undefined;return v===undefined?null:{key:id+':ref:'+i,text:fmtC(v)};}
+  if(at.classList.contains('d')){const r=C.runAt(atoms,i);return r?{key:id+':run:'+r[0],text:pieceText(atoms.slice(r[0],r[1]))}:null;}
+  return null;
+}
 $('#tape').addEventListener('click',e=>{
   const ln=e.target.closest('.ln');
   if(picked){if(ln&&ln.dataset.id!=='draft')togglePick(ln.dataset.id);return;}
   if(!ln){activate('draft');return;}
   const id=ln.dataset.id;
-  if(id!=='draft'&&(byId(id)||{}).note!==undefined){noteDlg(id);return;}
+  const ct=tapCopyTarget(e,ln,id);
+  // второе нажатие в то же место — двойное (после первого строки могли сдвинуться: сверяем место, а не элемент)
+  if(lastTap&&now()-lastTap.t<400&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<30){
+    const lt=lastTap;lastTap=null;
+    if(lt.undo){if(undoSt.length>lt.undo.ul)undo();else{draft=lt.undo.draft;ed=lt.undo.ed;justCommitted=lt.undo.jc;changed();}}
+    copyText(lt.text,'Скопировано: '+lt.text);return;
+  }
+  lastTap=ct?{key:ct.key,text:ct.text,t:now(),x:e.clientX,y:e.clientY}:null;
+  if(id!=='draft'&&(byId(id)||{}).note!==undefined)return; // заметка: одно нажатие ничего не делает (двойное — копировать, долгое — меню)
   const res=e.target.closest('.res');
   if(res&&pip&&S.miniMode==='line'&&id!=='draft')return;
-  if(res){insertRef(res.dataset.r);return;}
+  if(res){
+    if(lastTap)lastTap.undo={draft:clone(draft),ed:clone(ed),jc:justCommitted,ul:undoSt.length};
+    insertRef(res.dataset.r);return;
+  }
   const at=e.target.closest('[data-i]');
   if(!at){activate(id);return;}
   const i=+at.dataset.i;
@@ -1065,7 +1092,8 @@ async function lineMenu(id,refAt,numAt){
   if(l.note!==undefined){
     const k=await choose('Заметка',[{k:'ed',l:'Изменить заметку'},{k:'cp',l:'Копировать текст'},
       {k:'pin',l:l.pin?'Открепить':'Закрепить сверху',more:1},{k:'above',l:'Вставить строку выше',more:1},{k:'del',l:'Удалить',c:'dng',more:1}]);
-    if(k==='ed')noteDlg(id);else if(k==='cp')copyText(l.note);else if(k==='del')deleteLine(id);
+    if(k==='ed')noteDlg(id);else if(k==='cp')copyText(l.note);
+    else if(k==='del'){if(await confirmBox('Удалить заметку?','Заметка уйдёт в корзину — оттуда её можно вернуть 30 дней.','Удалить',1)==='ok')deleteLine(id);}
     else if(k==='pin')setProp(id,'pin',l.pin?undefined:1);else if(k==='above')insertAbove(id);
     return;
   }
@@ -1110,7 +1138,7 @@ async function lineMenu(id,refAt,numAt){
   else if(k==='above')insertAbove(id);
   else if(k==='del'){
     const deps=C.directDependents(lines,id).length;
-    if(deps&&await confirmBox('Удалить строку?',`На её результат ссылаются строки: ${deps}. В них вместо ссылки останется число ${r&&!r.err?fmtV(r.v):''}.`,'Удалить',1)!=='ok')return;
+    if(await confirmBox('Удалить строку?',deps?`На её результат ссылаются строки: ${deps}. В них вместо ссылки останется число ${r&&!r.err?fmtV(r.v):''}. Строка уйдёт в корзину.`:'Строка уйдёт в корзину — оттуда её можно вернуть 30 дней.','Удалить',1)!=='ok')return;
     deleteLine(id);
   }
 }
@@ -1245,6 +1273,7 @@ $('#grids').addEventListener('pointercancel',()=>{holdEnd();hold.used=false;});
 $('#pad').addEventListener('contextmenu',e=>e.preventDefault());
 $('#pad').addEventListener('mousedown',e=>e.preventDefault()); // кнопки не забирают фокус (Enter на ПК не нажмёт кнопку)
 $('#pad').addEventListener('click',e=>{
+  lastTap=null; // нажали кнопку — следующее нажатие в ленте уже не «второе»
   const b=e.target.closest('[data-k]');if(!b||swiped||hold.used)return;
   const k=b.dataset.k;
   if(k==='tog')togglePad();
@@ -1268,6 +1297,7 @@ function disarmDel(){
   delArm=null;
 }
 function onKey(e){
+  lastTap=null;
   if(delArm&&e.key!=='Delete'&&e.key!=='Shift')disarmDel();
   if(e.key==='F1'){e.preventDefault();openHelp();return;}
   if(e.key==='F2'&&$('#dlg').classList.contains('hidden')){e.preventDefault();noteDlg(null);return;} // новая заметка
@@ -1344,7 +1374,7 @@ document.addEventListener('keydown',onKey);
 
 /* ---------- окна ---------- */
 let dlgResolve=null;
-function openDlg(html){dlgGrow();const b=$('#dlg .box');b.innerHTML=html;$('#dlg').classList.remove('hidden');b.scrollTop=0;return new Promise(r=>dlgResolve=r);}
+function openDlg(html){lastTap=null;dlgGrow();const b=$('#dlg .box');b.innerHTML=html;$('#dlg').classList.remove('hidden');b.scrollTop=0;return new Promise(r=>dlgResolve=r);}
 function closeDlg(v){const f=DOC.activeElement;if(f&&f.closest&&f.closest('#dlg'))f.blur(); // фокус из окна — обратно калькулятору
   $('#dlg').classList.add('hidden');const r=dlgResolve;dlgResolve=null;if(r)r(v);dlgShrink();}
 $('#dlg').addEventListener('click',e=>{

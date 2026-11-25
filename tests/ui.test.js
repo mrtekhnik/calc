@@ -57,6 +57,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.screenshot({path: OUT + '/phone-3-edited.png'});
   // второе нажатие по числу — курсор внутри
   await firstLine.locator('.d').nth(0).click(); // «1» в 150000: первое нажатие выделяет число
+  await p.waitForTimeout(450); // быстрое двойное нажатие копирует, курсор — вторым нажатием чуть позже
   await firstLine.locator('.d').nth(0).click({position: {x: 1, y: 10}}); // второе — курсор перед «1»
   eq('курсор в числе', await p.$$eval('#lines .ln.act .caret', ns => ns.length), 1);
   await tap('2');
@@ -153,6 +154,21 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await p.click('#undoBtn');
   // долгое нажатие на число: копировать и вставить в строку ввода
   await phone.grantPermissions(['clipboard-read', 'clipboard-write']);
+  // двойное нажатие — копировать: число в строке, результат (вставка в ввод отменяется), предпросмотр
+  const clip = () => p.evaluate(() => navigator.clipboard.readText());
+  await p.locator('#lines .ln').nth(0).locator('.d').nth(8).dblclick();
+  eq('двойной тап по числу — скопировано', await clip(), '0,155');
+  await p.waitForTimeout(450); await p.click('.ln.draft');
+  await p.locator('#lines .ln').nth(1).locator('.res').dblclick();
+  eq('двойной тап по результату — скопировано', await clip(), '17902,5');
+  eq('двойной тап по результату — в строку ввода ничего не вставлено', clean(await draftText()), '0');
+  await p.locator('#lines .ln').nth(2).locator('.ref').dblclick();
+  eq('двойной тап по ссылке — скопировано', await clip(), '17902,5');
+  await p.waitForTimeout(450); await p.click('.ln.draft');
+  await typeKeys('2*3'); await p.locator('.ln.draft .pv').dblclick();
+  eq('двойной тап по предпросмотру — скопировано', await clip(), '6');
+  await tap('C');
+  await p.waitForTimeout(450);
   await p.locator('#lines .ln').nth(0).locator('.d').nth(8).click({button: 'right'});
   eq('пункты меню числа', await p.$$eval('#dlg .mi', ns => ns.slice(0, 2).map(n => n.textContent)), ['Копировать число 0,155', 'Вставить число в строку ввода']);
   await p.click('#dlg .mi[data-r="pc"]');
@@ -387,6 +403,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   /* ---------- ПК ---------- */
   const pc = await browser.newContext({viewport: {width: 1280, height: 720}});
+  await pc.grantPermissions(['clipboard-read', 'clipboard-write']);
   const d = await pc.newPage();
   d.on('pageerror', e => errors.push('pc: ' + e.message));
   await d.goto(URL);
@@ -489,7 +506,11 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.keyboard.press('Escape');
   await d.keyboard.press('F2'); await d.keyboard.type('Заказ 358: 2 листа'); await d.keyboard.press('Control+Enter');
   eq('ПК заметка добавлена', await d.$$eval('#lines .note', ns => ns.map(n => n.textContent)), ['Заказ 358: 2 листа']);
-  await d.click('#lines .note'); await d.fill('#nTxt', 'Заказ 358: 3 листа'); await d.click('#dlg .btns .pri');
+  await d.click('#lines .note');
+  eq('ПК заметка: одно нажатие не открывает правку', await d.isVisible('#nTxt'), false);
+  await d.waitForTimeout(450);
+  await d.locator('#lines .note').click({button: 'right'}); await d.click('#dlg .mi[data-r="ed"]');
+  await d.fill('#nTxt', 'Заказ 358: 3 листа'); await d.click('#dlg .btns .pri');
   eq('ПК заметка изменена', await d.$$eval('#lines .note', ns => ns.map(n => n.textContent)), ['Заказ 358: 3 листа']);
   await d.click('#findBtn'); await d.fill('#q', '358');
   eq('ПК поиск находит заметку', await d.$$eval('#lines .ln.found .note', ns => ns.length), 1);
@@ -497,7 +518,11 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.keyboard.press('ArrowUp');
   eq('ПК стрелки пропускают заметку', await d.$$eval('#lines .ln.act .note', ns => ns.length), 0);
   await d.keyboard.press('Escape');
+  await d.locator('#lines .note').dblclick();
+  eq('ПК двойной щелчок по заметке — копирует', await d.evaluate(() => navigator.clipboard.readText()), 'Заказ 358: 3 листа');
   await d.locator('#lines .note').click({button: 'right'}); await mi(d, 'del');
+  eq('ПК удаление заметки — с подтверждением', await d.textContent('#dlg h2'), 'Удалить заметку?');
+  await d.click('#dlg .btns .dng');
   eq('ПК заметка удалена в корзину', [await d.$$eval('#lines .note', ns => ns.length), await d.evaluate(() => trash().some(l => l.note))], [0, true]);
   // порядок главного меню
   await d.click('#menuBtn');
@@ -722,7 +747,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.4']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-4.5']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
