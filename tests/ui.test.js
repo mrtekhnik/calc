@@ -320,7 +320,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('округление вверх', L[L.length - 1], 'вверх(12,1; 0,5) = 12,5');
   // выделение строк и сумма
   await p.locator('#lines .ln').nth(2).click({button: 'right'});
-  await mi(p, 'sel');
+  await mi(p, 'sum');
   await p.locator('#lines .ln').nth(3).click(); await p.locator('#lines .ln').nth(4).click();
   eq('сумма выделенных', clean(await p.textContent('#selBar .st')), 'Выбрано: 3 · Σ 24 480,5 · ср. 8 160,1667 · мин 3 255 · макс 17 902,5');
   await p.screenshot({path: OUT + '/phone-17-sum.png'});
@@ -348,7 +348,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // меню строки: сверху важное, остальное под «Ещё»
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
-  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Править строку', 'Удалить строку']);
+  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Править строку', 'Удалить строку', 'Выбрать строки (удалить, копировать…)']);
   eq('меню: «Ещё» скрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), false);
   await p.click('#moreBtn');
   eq('меню: «Ещё» раскрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), true);
@@ -530,6 +530,47 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   eq('ПК стёртая строка удалена при выходе', (await dl()).length, n0 - 1);
   await d.click('#tUndo');
   eq('ПК «Вернуть» — строка как была', (await dl()).length, n0);
+  // «Выбрать строки»: массовые действия
+  {
+    const lnN = i => d.locator('#lines .ln:not(.draft)').nth(i);
+    const st = async () => clean(await d.textContent('#selBar .st'));
+    await lnN(0).click({button: 'right'}); await mi(d, 'sel');
+    eq('выбор: режим действий, одна строка', [await st(), await d.isVisible('#selBar [data-s="del"]'), await d.isVisible('#selBar [data-s="sum"]')], ['Выбрано строк: 1', true, false]);
+    await lnN(2).click({modifiers: ['Shift']});
+    eq('выбор: Shift+клик — диапазон', await st(), 'Выбрано строк: 3');
+    await d.keyboard.press('Control+a');
+    eq('выбор: Ctrl+A — все', await st(), 'Выбрано строк: ' + n0);
+    await d.click('#selBar [data-s="none"]');
+    eq('выбор: «Снять»', await d.evaluate(() => picked.size), 0);
+    await d.locator('#lines .hdr').last().click();
+    eq('выбор: разделитель дня — весь день', await d.evaluate(() => vis().filter(l => picked.has(l.id)).map(l => dayKey(l.at)).join()), await d.evaluate(() => vis().filter(l => dayKey(l.at) === dayKey(Date.now())).map(l => dayKey(l.at)).join()));
+    await d.locator('#lines .hdr').last().click();
+    eq('выбор: разделитель повторно — снято', await d.evaluate(() => picked.size), 0);
+    await lnN(0).click(); await lnN(1).click();
+    await d.click('#selBar [data-s="cp"]');
+    eq('выбор: копировать строки', (await d.evaluate(() => navigator.clipboard.readText())).split('\n').map(clean), (await dl()).slice(0, 2));
+    await d.click('#selBar [data-s="more"]'); await d.click('#dlg .mi[data-r="res"]');
+    eq('выбор: копировать только результаты', (await d.evaluate(() => navigator.clipboard.readText())).split('\n').map(clean), (await dl()).slice(0, 2).map(x => x.split(' = ')[1]));
+    await d.click('#selBar [data-s="more"]'); await d.click('#dlg .mi[data-r="pin"]');
+    eq('выбор: закреплено 2', await d.$$eval('#pins .pin', ns => ns.length), 2);
+    await d.click('#undoBtn');
+    eq('выбор: ↶ открепил все разом', await d.$$eval('#pins .pin', ns => ns.length), 0);
+    await d.keyboard.press('Escape');
+    eq('выбор: Esc — выход', await d.isVisible('#selBar'), false);
+    // строка со ссылкой на удаляемую
+    await d.locator('#lines .ln:not(.draft)').nth(0).locator('.res').click(); await kb('+1\n');
+    const nX = (await dl()).length, lastX = (await dl())[nX - 1];
+    await lnN(0).click({button: 'right'}); await mi(d, 'sel'); await lnN(1).click();
+    await d.keyboard.press('Delete');
+    eq('выбор: подтверждение удаления', clean(await d.textContent('#dlg h2')), 'Удалить строк: 2?');
+    await d.click('#dlg .btns [data-r="ok"]');
+    L = await dl();
+    eq('выбор: удалено 2, режим закрыт', [L.length, await d.isVisible('#selBar')], [nX - 2, false]);
+    eq('выбор: в зависимой строке осталось число', [L[L.length - 1].split(' = ')[1], await d.evaluate(() => C.refsOf(vis()[vis().length - 1].expr).length)], [lastX.split(' = ')[1], 0]);
+    await d.click('#tUndo');
+    eq('выбор: «Вернуть» — все строки и ссылка', [(await dl()).length, await d.evaluate(() => C.refsOf(vis()[vis().length - 1].expr).length)], [nX, 1]);
+    await d.click('#undoBtn');
+  }
   // заметка, начинающаяся с цифр: #
   await d.keyboard.press('#');
   eq('ПК # открыл заметку', await d.isVisible('#nTxt'), true);
@@ -824,7 +865,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-5.1']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-5.2']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);

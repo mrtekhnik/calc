@@ -48,6 +48,9 @@ body.picking .ln:not(.draft){cursor:pointer}
 #selBar .st{flex:1 1 100%;font-size:13px;font-variant-numeric:tabular-nums}
 #selBar .st b{color:var(--acc);font-weight:600}
 #selBar button{padding:6px 10px;border-radius:9px;border:1px solid rgba(128,128,128,.45);font-size:14px;white-space:nowrap}
+#selBar button.dng{color:#e5534b;border-color:rgba(229,83,75,.55)}
+#selBar button:disabled{opacity:.45}
+body.picking .hdr{cursor:pointer;text-decoration:underline dotted}
 #selBar button.pri{background:var(--eq);color:var(--eqInk);border-color:transparent}
 .fld{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .fld .inp{margin:0;flex:1}
@@ -270,7 +273,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='5.1',APP_DATE='25.11.2026';
+const APP_VERSION='5.2',APP_DATE='26.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -899,10 +902,11 @@ function render(){
   const keep=new Set();
   let prev=null,lastDay=null,found=0;
   const place=n=>{const want=prev?prev.nextSibling:box.firstChild;if(want!==n)box.insertBefore(n,want);prev=n;};
-  const header=(key,text)=>{
+  const header=(key,text,day)=>{
     keep.add(key);
     let n=nodes.get(key);
     if(!n){n=DOC.createElement('div');n.className='hdr';nodes.set(key,n);}
+    n.dataset.day=day||'';
     if(n.textContent!==text)n.textContent=text;
     place(n);
   };
@@ -914,7 +918,7 @@ function render(){
       const parts=[];
       if(S.days&&day!==lastDay)parts.push(dayName(l.at||l.upd));
       if(l.brk)parts.push('новый расчёт');
-      if(parts.length)header('h:'+l.id,parts.join(' · '));
+      if(parts.length)header('h:'+l.id,parts.join(' · '),S.days&&day!==lastDay?day:'');
     }
     if(ok)lastDay=day;
     keep.add(l.id);
@@ -953,19 +957,46 @@ function rerenderAll(){for(const n of nodes.values())n._h='';render();}
 const scrollBottom=()=>{const t=$('#tape');t.scrollTop=t.scrollHeight;};
 new ResizeObserver(()=>{if(ed.id==='draft')scrollBottom();}).observe($('#tape'));
 
-/* ---------- выделение строк: сумма, среднее, мин, макс ---------- */
+/* ---------- выбор строк: два режима — «посчитать» (сумма, среднее…) и «действия» (удалить, копировать…) ---------- */
 let picked=null; // Set номеров выделенных строк или null
-function startPick(id){leaveEdit();picked=new Set(id?[id]:[]);DOC.body.classList.add('picking');changed();}
-function stopPick(){picked=null;DOC.body.classList.remove('picking');$('#selBar').classList.add('hidden');render();}
-function togglePick(id){if(picked.has(id))picked.delete(id);else picked.add(id);render();}
+let pickMode='calc',pickAnchor=null; // 'calc' | 'act'; pickAnchor — последняя нажатая строка (для Shift+клик)
+function startPick(id,mode){leaveEdit();pickMode=mode||'calc';picked=new Set(id?[id]:[]);pickAnchor=id||null;DOC.body.classList.add('picking');changed();}
+function stopPick(){picked=null;pickAnchor=null;DOC.body.classList.remove('picking');$('#selBar').classList.add('hidden');render();}
+function togglePick(id,range){
+  const V=vis().filter(matches).map(l=>l.id);
+  if(range&&pickAnchor&&V.includes(pickAnchor)){ // Shift+клик — всё от прошлой нажатой строки до этой
+    let a=V.indexOf(pickAnchor),b=V.indexOf(id);if(a>b)[a,b]=[b,a];
+    for(const x of V.slice(a,b+1))picked.add(x);
+  }else if(picked.has(id))picked.delete(id);else picked.add(id);
+  pickAnchor=id;render();
+}
+// Нажатие на разделитель (день, «новый расчёт») — выбрать все строки под ним до следующего разделителя; повторно — снять
+function pickBlock(hdr){
+  const ids=[],day=hdr.dataset.day; // разделитель дня — весь день; только «новый расчёт» — до следующего разделителя
+  for(let n=hdr.nextSibling;n&&!n.classList.contains('draft');n=n.nextSibling){
+    if(n.classList.contains('hdr')){if(!day||n.dataset.day)break;continue;}
+    if(n.classList.contains('ln')&&!n.classList.contains('hidden'))ids.push(n.dataset.id);
+  }
+  if(!ids.length)return;
+  const all=ids.every(x=>picked.has(x));
+  for(const x of ids)all?picked.delete(x):picked.add(x);
+  render();
+}
+const pickedLines=()=>vis().filter(l=>picked.has(l.id));
 function pickedVals(){return vis().filter(l=>picked.has(l.id)).map(l=>({id:l.id,v:refVal(l.id)})).filter(x=>x.v!==undefined);}
 function renderSelBar(){
   const bar=$('#selBar');
   if(!picked){bar.classList.add('hidden');return;}
+  if(pickMode==='act'){
+    const n=picked.size,d=n?'':' disabled';
+    const h=`<div class="st">${n?`Выбрано строк: <b>${n}</b>`:'Нажимайте на строки, чтобы выбрать; на разделитель дня — весь день'}</div><button class="dng" data-s="del"${d}>Удалить</button><button data-s="cp"${d}>Копировать</button><button data-s="more"${d}>Ещё ▾</button><button data-s="all">Все</button><button data-s="none"${d}>Снять</button><button class="pri" data-s="x">Готово</button>`;
+    if(bar._h!==h){bar.innerHTML=h;bar._h=h;}
+    bar.classList.remove('hidden');return;
+  }
   const P=pickedVals(),n=P.length,sum=P.reduce((a,x)=>a+x.v,0);
   const R5=v=>C.evaluate(C.numberAtoms(v)).v;
   const st=n?`Выбрано: ${n} · Σ <b>${fmtV(R5(sum))}</b> · ср. <b>${fmtV(R5(sum/n))}</b> · мин <b>${fmtV(Math.min(...P.map(x=>x.v)))}</b> · макс <b>${fmtV(Math.max(...P.map(x=>x.v)))}</b>`:'Нажимайте на строки, чтобы выделить';
-  const h=`<div class="st">${st}</div><button class="pri" data-s="sum"${n?'':' disabled'}>Σ в ввод</button><button data-s="avg"${n?'':' disabled'}>Ср. в ввод</button><button data-s="all">Все</button><button data-s="x">Готово</button>`;
+  const h=`<div class="st">${st}</div><button class="pri" data-s="sum"${n?'':' disabled'}>Σ в ввод</button><button data-s="avg"${n?'':' disabled'}>Ср. в ввод</button><button data-s="all">Все</button><button data-s="none"${picked.size?'':' disabled'}>Снять</button><button data-s="x">Готово</button>`;
   if(bar._h!==h){bar.innerHTML=h;bar._h=h;}
   bar.classList.remove('hidden');
 }
@@ -985,8 +1016,62 @@ $('#selBar').addEventListener('click',e=>{
   const k=b.dataset.s;
   if(k==='sum')pickToDraft(false);else if(k==='avg')pickToDraft(true);
   else if(k==='all'){for(const l of vis())if(matches(l))picked.add(l.id);render();}
+  else if(k==='none'){picked.clear();pickAnchor=null;render();}
+  else if(k==='del')pickDelete();
+  else if(k==='cp')pickCopy(false);
+  else if(k==='more')pickMore();
   else stopPick();
 });
+async function pickDelete(){
+  const L=pickedLines();if(!L.length)return;
+  const ids=new Set(L.map(l=>l.id));
+  const deps=lines.filter(x=>!x.del&&!ids.has(x.id)&&C.refsOf(x.expr).some(r=>ids.has(r)));
+  if(await confirmBox(`Удалить строк: ${L.length}?`,(deps.length?`На их результаты ссылаются другие строки (${deps.length}) — в них вместо ссылок останутся числа. `:'')+'Строки уйдут в корзину — оттуда их можно вернуть 30 дней.','Удалить',1)!=='ok')return;
+  stopPick();deleteLines([...ids]);
+}
+// Удалить несколько строк одним действием (одна отмена ↶ / «Вернуть»)
+function deleteLines(ids){
+  const S_=new Set(ids),val={};for(const id of ids)val[id]=refVal(id);
+  const deps=lines.filter(x=>!x.del&&!S_.has(x.id)&&C.refsOf(x.expr).some(r=>S_.has(r)));
+  leaveEdit();
+  const items=[...ids.map(id=>({id,before:clone(byId(id))})),...deps.map(d=>({id:d.id,before:clone(d)}))];
+  for(const d of deps){for(const id of ids)if(C.refsOf(d.expr).includes(id))d.expr=C.freezeRef(d.expr,id,val[id]);d.upd=now();d.mod=now();}
+  for(const id of ids)if(C.refsOf(draft).includes(id))draft=C.freezeRef(draft,id,val[id]);
+  ed={id:'draft',atoms:draft,cur:draft.length,sel:null};
+  for(const id of ids){const l=byId(id);l.del=1;l.upd=now();if(justCommitted===id)justCommitted=null;}
+  pushUndo(items,'del');changed();
+  toastUndo(`Удалено строк: ${ids.length} (в корзине)`+(deps.length?`. В зависимых строках (${deps.length}) остались числа`:''));
+}
+function pickCopy(onlyRes){
+  const L=pickedLines();if(!L.length)return;
+  if(onlyRes){
+    const V=L.filter(l=>l.note===undefined).map(l=>refVal(l.id)).filter(v=>v!==undefined);
+    if(!V.length){toast('В выбранных строках нет результатов');return;}
+    copyText(V.map(fmtC).join('\n'),`Скопировано результатов: ${V.length}`);return;
+  }
+  copyText(L.map(lineText).join('\n'),`Скопировано строк: ${L.length}`);
+}
+// Одно действие над всеми выбранными строками — одна отмена
+function pickChange(f,msg){
+  const L=pickedLines(),items=[];
+  for(const l of L){const b=clone(l);if(f(l)){items.push({id:l.id,before:b});l.upd=now();}}
+  if(!items.length)return 0;
+  pushUndo(items,'prop');changed();toast(msg(items.length));return items.length;
+}
+async function pickMore(){
+  const L=pickedLines();if(!L.length)return;
+  const unp=L.some(l=>!l.pin),pin=L.some(l=>l.pin),refs=L.some(l=>C.refsOf(l.expr).length);
+  const k=await choose(`Выбрано строк: ${L.length}`,[{k:'res',l:'Копировать только результаты (столбиком)'},
+    ...(unp?[{k:'pin',l:'Закрепить сверху'}]:[]),...(pin?[{k:'unpin',l:'Открепить'}]:[]),...(refs?[{k:'unl',l:'Убрать ссылки (оставить числа)'}]:[])]);
+  if(k==='res')pickCopy(true);
+  else if(k==='pin')pickChange(l=>{if(l.pin)return false;l.pin=1;return true;},n=>`Закреплено строк: ${n}`);
+  else if(k==='unpin')pickChange(l=>{if(!l.pin)return false;delete l.pin;return true;},n=>`Откреплено строк: ${n}`);
+  else if(k==='unl'){
+    let bad=0;
+    const n=pickChange(l=>{const u=unlinkIn(l.expr,null);bad+=u.bad;if(!u.n)return false;l.expr=u.expr;l.mod=now();return true;},n=>`Ссылки убраны в строках: ${n} — остались числа`);
+    if(!n&&bad)toast('У ссылок нет значения — сначала исправьте исходные строки');
+  }
+}
 
 /* ---------- нажатия в ленте ---------- */
 // Двойное нажатие (двойной тап) на число, результат, зелёную ссылку, предпросмотр или заметку — копировать в буфер.
@@ -1007,7 +1092,7 @@ function tapCopyTarget(e,ln,id){
 }
 $('#tape').addEventListener('click',e=>{
   const ln=e.target.closest('.ln');
-  if(picked){if(ln&&ln.dataset.id!=='draft')togglePick(ln.dataset.id);return;}
+  if(picked){const hd=e.target.closest('.hdr');if(hd){pickBlock(hd);return;}if(ln&&ln.dataset.id!=='draft')togglePick(ln.dataset.id,e.shiftKey);return;}
   if(!ln){activate('draft');return;}
   const id=ln.dataset.id;
   const ct=tapCopyTarget(e,ln,id);
@@ -1117,17 +1202,18 @@ async function lineMenu(id,refAt,numAt){
   const l=byId(id);if(!l)return;
   if(l.note!==undefined){
     const k=await choose('Заметка',[{k:'ed',l:'Изменить заметку'},{k:'cp',l:'Копировать текст'},
-      {k:'del',l:'Удалить',c:'dng'},{k:'pin',l:l.pin?'Открепить':'Закрепить сверху',more:1},{k:'above',l:'Вставить строку выше',more:1}]);
+      {k:'del',l:'Удалить',c:'dng'},{k:'sel',l:'Выбрать строки (удалить, копировать…)'},{k:'pin',l:l.pin?'Открепить':'Закрепить сверху',more:1},{k:'above',l:'Вставить строку выше',more:1}]);
     if(k==='ed')noteDlg(id);else if(k==='cp')copyText(l.note);
     else if(k==='del'){if(await confirmBox('Удалить заметку?','Заметка уйдёт в корзину — оттуда её можно вернуть 30 дней.','Удалить',1)==='ok')deleteLine(id);}
     else if(k==='pin')setProp(id,'pin',l.pin?undefined:1);else if(k==='above')insertAbove(id);
+    else if(k==='sel')startPick(id,'act');
     return;
   }
   const r=results.get(id);
   // сверху — частые действия, остальное — под «Ещё»
   const items=one.filter(x=>!x.more);
   if(r&&!r.err)items.push({k:'ins',l:'Вставить результат в строку ввода'},{k:'cr',l:'Копировать результат'});
-  items.push({k:'edit',l:'Править строку'},{k:'del',l:'Удалить строку',c:'dng'});
+  items.push({k:'edit',l:'Править строку'},{k:'del',l:'Удалить строку',c:'dng'},{k:'sel',l:'Выбрать строки (удалить, копировать…)'});
   items.push(...one.filter(x=>x.more));
   const M=(k,l)=>items.push({k,l,more:1});
   if(r&&!r.err)M('rnd','Округлить результат…');
@@ -1137,7 +1223,7 @@ async function lineMenu(id,refAt,numAt){
   if(nDeps)M('unD',`Отвязать строки, которые ссылаются сюда (${nDeps})`);
   if(S.labels)M('lbl',l.label?'Изменить подпись':'Подпись…');
   M('pin',l.pin?'Открепить':'Закрепить сверху');
-  M('sel','Выделить строки (сумма, среднее)');
+  M('sum','Посчитать строки (сумма, среднее)');
   M('tpl','Сохранить как шаблон…');
   M('brk',l.brk?'Убрать разделитель «новый расчёт»':'Новый расчёт с этой строки');
   M('above','Вставить строку выше');
@@ -1157,7 +1243,8 @@ async function lineMenu(id,refAt,numAt){
     if(t!==null)setProp(id,'label',t.trim().slice(0,60)||undefined);
   }
   else if(k==='pin')setProp(id,'pin',l.pin?undefined:1);
-  else if(k==='sel')startPick(id);
+  else if(k==='sel')startPick(id,'act');
+  else if(k==='sum')startPick(id,'calc');
   else if(k==='tpl')saveTemplate(id);
   else if(k==='brk')setProp(id,'brk',l.brk?undefined:1);
   else if(k==='edit')activate(id);
@@ -1351,6 +1438,7 @@ function onKey(e){
   const c=e.ctrlKey||e.metaKey;
   if(c&&!e.altKey){
     const k=e.key.toLowerCase();
+    if(picked&&(k==='a'||k==='ф')){e.preventDefault();for(const l of vis())if(matches(l))picked.add(l.id);render();return;} // выбрать все
     if(k==='f'||k==='а'){e.preventDefault();openSearch();return;}
     if(k==='l'||k==='д'){e.preventDefault();pickByLabel('');return;}
     if(k==='m'||k==='ь'){e.preventDefault();openMini();return;} // мини-окно: открыть / вернуть
@@ -1380,6 +1468,7 @@ function onKey(e){
     }
     k='=';
   }
+  else if(e.key==='Delete'&&picked){e.preventDefault();if(pickMode==='act')pickDelete();return;} // в режиме «Выбрать строки» — удалить выбранные
   else if(e.key==='Backspace')k='back';
   // Удаление строки истории с клавиатуры — только двумя нажатиями: Delete (или Shift+Delete) — строка подсвечивается красным,
   // ещё раз Delete в течение 3 с — удалена. Любая другая клавиша отменяет.
@@ -1790,7 +1879,7 @@ $('#menuBtn').onclick=async()=>{
     {k:'st',l:'Настройки'},{k:'help',l:'Справка'},
     {k:'tr',l:nT?`Корзина (${nT})`:'Корзина'},{k:'bk',l:'Создать резервную копию',c:'hi'},{k:'rs',l:'Восстановить из резервной копии'},
     {k:'sy',l:'Синхронизировать',more:1},{k:'up',l:'Проверить обновления',more:1},
-    {k:'pick',l:'Вставить по подписи',more:1},{k:'sel',l:'Выделить строки (сумма)',more:1},{k:'th',l:'Темы',more:1},{k:'cp',l:'Копировать всю историю',more:1},
+    {k:'pick',l:'Вставить по подписи',more:1},{k:'sel',l:'Выбрать строки (удалить, копировать…)',more:1},{k:'sum',l:'Посчитать строки (сумма, среднее)',more:1},{k:'th',l:'Темы',more:1},{k:'cp',l:'Копировать всю историю',more:1},
     {k:'clr',l:'Очистить историю',c:'dng',more:1}],
     `Версия ${APP_VERSION} от ${APP_DATE}<br>Синхронизация: ${cfg?(syncState.lastSync?whenText(syncState.lastSync):'ещё не было'):'не настроена'}`);
   if(k==='sy')syncNow();
@@ -1802,7 +1891,8 @@ $('#menuBtn').onclick=async()=>{
   else if(k==='pick')pickByLabel('');
   else if(k==='tpls')templatesDlg();
   else if(k==='mini')openMini();
-  else if(k==='sel')startPick(null);
+  else if(k==='sel')startPick(null,'act');
+  else if(k==='sum')startPick(null,'calc');
   else if(k==='th')themesDlg();
   else if(k==='st')settingsDlg();
   else if(k==='cp'){const L=vis();if(!L.length)return toast('История пуста');copyText(L.map(lineText).join('\n'),`Скопировано строк: ${L.length}`);}
