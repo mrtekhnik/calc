@@ -168,6 +168,9 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 #dlg .btns button{padding:10px 18px;border-radius:10px;font-weight:600}
 #dlg .btns .pri{background:var(--eq);color:var(--eqInk)}
 #dlg .btns .dng{background:var(--err);color:#fff}
+#dlg .trTop{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
+#dlg .trTop button{padding:7px 12px;border-radius:9px;font-size:14px;font-weight:600;border:1px solid rgba(128,128,128,.45)}
+#dlg .trTop .dng{color:var(--err);border-color:var(--err)}
 .mi{display:flex;align-items:center;width:100%;text-align:left;padding:13px 10px;font-size:16px;border-radius:10px}
 .mi:active{background:rgba(128,128,128,.18)}
 .mi.dng{color:var(--err)}
@@ -273,7 +276,7 @@ body.m-line #mFab{display:flex;position:absolute;left:4px;top:50%;transform:tran
 <script src="core.js"></script>
 <script>
 'use strict';
-const APP_VERSION='5.2',APP_DATE='26.11.2026';
+const APP_VERSION='5.3',APP_DATE='28.11.2026';
 const C=window.CalcCore;
 // DOC/WIN — документ и окно, где сейчас показан калькулятор (основное окно или мини-окно поверх всех окон)
 let DOC=document,WIN=window;
@@ -770,10 +773,13 @@ async function trashDlg(){
   const T=trash();
   if(!T.length){alertBox('Корзина','<p>Корзина пуста.</p><p>Сюда попадают удалённые строки. Через 30 дней они удаляются навсегда.</p>');return;}
   const row=l=>{const r=C.evaluate(l.expr,()=>{throw new C.CalcError('x');});
-    return `<div class="tp"><button class="pk" data-r="r:${esc(l.id)}" title="Восстановить"><span>${esc((S.labels&&l.label?l.label+': ':'')+C.exprText(l.expr,refVal,optsF()))}${r&&!r.err?' = '+fmtV(r.v):''}</span><b style="font-size:12px;opacity:.7">${whenText(l.upd)}</b></button><button class="x" data-r="d:${esc(l.id)}" title="Удалить навсегда">✕</button></div>`;};
-  const k=await openDlg(`<h2>Корзина (${T.length})</h2><div class="txt">Нажмите на строку — восстановить. ✕ — удалить навсегда. Через 30 дней строки удаляются сами.</div>
+    const txt=l.note!==undefined?'📝 '+l.note.split('\n')[0].slice(0,80):(S.labels&&l.label?l.label+': ':'')+C.exprText(l.expr,refVal,optsF())+(r&&!r.err?' = '+fmtV(r.v):'');
+    return `<div class="tp"><button class="pk" data-r="r:${esc(l.id)}" title="Восстановить"><span>${esc(txt)}</span><b style="font-size:12px;opacity:.7">${whenText(l.upd)}</b></button><button class="x" data-r="d:${esc(l.id)}" title="Удалить навсегда">✕</button></div>`;};
+  const k=await openDlg(`<h2>Корзина (${T.length})</h2>
+    <div class="trTop"><button data-r="ra">Восстановить все</button><button class="dng" data-r="ca">Очистить корзину</button></div>
+    <div class="txt">Нажмите на строку — восстановить. ✕ — удалить навсегда. Через 30 дней строки удаляются сами.</div>
     ${T.slice(0,300).map(row).join('')}
-    <div class="btns" style="flex-wrap:wrap"><button data-r="ra">Восстановить все</button><button class="dng" data-r="ca">Очистить корзину</button><button class="pri" data-r="no">Закрыть</button></div>`);
+    <div class="btns"><button class="pri" data-r="no">Закрыть</button></div>`);
   if(!k||k==='no')return;
   if(k==='ra'){restoreLines(T.map(l=>l.id));return;}
   if(k==='ca'){if(await confirmBox('Очистить корзину?',`Строк: ${T.length}. Они будут удалены навсегда, отменить нельзя.`,'Очистить',1)==='ok'){purgeLines(T.map(l=>l.id));toast('Корзина очищена');}return trashDlg();}
@@ -1213,7 +1219,7 @@ async function lineMenu(id,refAt,numAt){
   // сверху — частые действия, остальное — под «Ещё»
   const items=one.filter(x=>!x.more);
   if(r&&!r.err)items.push({k:'ins',l:'Вставить результат в строку ввода'},{k:'cr',l:'Копировать результат'});
-  items.push({k:'edit',l:'Править строку'},{k:'del',l:'Удалить строку',c:'dng'},{k:'sel',l:'Выбрать строки (удалить, копировать…)'});
+  items.push({k:'del',l:'Удалить строку',c:'dng'},{k:'sel',l:'Выбрать строки (удалить, копировать…)'});
   items.push(...one.filter(x=>x.more));
   const M=(k,l)=>items.push({k,l,more:1});
   if(r&&!r.err)M('rnd','Округлить результат…');
@@ -1247,7 +1253,6 @@ async function lineMenu(id,refAt,numAt){
   else if(k==='sum')startPick(id,'calc');
   else if(k==='tpl')saveTemplate(id);
   else if(k==='brk')setProp(id,'brk',l.brk?undefined:1);
-  else if(k==='edit')activate(id);
   else if(k==='above')insertAbove(id);
   else if(k==='del'){
     const deps=C.directDependents(lines,id).length;

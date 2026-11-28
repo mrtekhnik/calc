@@ -348,7 +348,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // меню строки: сверху важное, остальное под «Ещё»
   await p.locator('#lines .ln').nth(1).click({button: 'right'});
-  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Править строку', 'Удалить строку', 'Выбрать строки (удалить, копировать…)']);
+  eq('меню: сверху', await p.$$eval('#dlg > .box > .mi:not(.mo)', ns => ns.map(n => n.textContent)), ['Вставить результат в строку ввода', 'Копировать результат', 'Удалить строку', 'Выбрать строки (удалить, копировать…)']);
   eq('меню: «Ещё» скрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), false);
   await p.click('#moreBtn');
   eq('меню: «Ещё» раскрыто', await p.isVisible('#dlg .mi[data-r="pin"]'), true);
@@ -865,7 +865,7 @@ const clean = s => s.replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
   await d.waitForFunction(() => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready, null, {timeout: 5000});
   await d.evaluate(() => navigator.serviceWorker.ready);
   await d.waitForTimeout(800);
-  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-5.2']);
+  eq('кэш', await d.evaluate(async () => (await caches.keys()).filter(k => k.startsWith('calc-'))), ['calc-5.3']);
   eq('справка в офлайн-кэше', await d.evaluate(async () => !!(await (await caches.open((await caches.keys()).find(k => k.startsWith('calc-')))).match('help.part'))), true);
 
   eq('ошибок JS нет', errors, []);
